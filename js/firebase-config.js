@@ -7,14 +7,14 @@ import { getFirestore } from "https://www.gstatic.com/firebasejs/11.9.1/firebase
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
-    apiKey: "AIzaSyAfk3ZkXWIm_7nv22qu5yjLs9O_INGW0wY",
-    authDomain: "wealthclubapp-15c80.firebaseapp.com",
-    projectId: "wealthclubapp-15c80",
-    storageBucket: "wealthclubapp-15c80.appspot.com",
-    messagingSenderId: "450374444529",
-    appId: "1:450374444529:web:e4cbe76551f7b7e7891050"
-};
-
+    apiKey: "AIzaSyC9ikNYt8QnD6FHm1MOq11HB0kTP_X8qNQ",
+    authDomain: "wealth-club-65dab.firebaseapp.com",
+    projectId: "wealth-club-65dab",
+    storageBucket: "wealth-club-65dab.firebasestorage.app",
+    messagingSenderId: "906138407714",
+    appId: "1:906138407714:web:78e002acd44d2af326cb7b",
+    measurementId: "G-8H8CZ65956"
+  };
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
