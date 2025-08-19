@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Koinonia</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <header>
+        <nav class="navbar">
+            <a href="index.html" class="nav-logo">Koinonia</a>
+        </nav>
+    </header>
+
+    <main class="main-content container auth-container">
+        <div class="card">
+            <h2>Welcome Back!</h2>
+            <form id="login-form">
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" required>
+                </div>
+                <button type="submit" class="cta-button">Login</button>
+            </form>
+            <p class="auth-switch">Don't have an account? <a href="signup.html">Sign Up</a></p>
+        </div>
+    </main>
+
+    <footer class="footer">
+        <p>&copy; 2025 Koinonia. All rights reserved.</p>
+    </footer>
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        // Your Firebase config goes here
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-app.js";
+        // Import other necessary modules like getAuth, signInWithEmailAndPassword
+        const firebaseConfig = {
+          apiKey: "AIzaSyAfk3ZkXWIm_7nv22qu5yjLs9O_INGW0wY",
+          authDomain: "wealthclubapp-15c80.firebaseapp.com",
+          projectId: "wealthclubapp-15c80",
+          storageBucket: "wealthclubapp-15c80.appspot.com",
+          messagingSenderId: "450374444529",
+          appId: "1:450374444529:web:e4cbe76551f7b7e7891050"
+        };
+        const app = initializeApp(firebaseConfig);
+        // Add auth logic here, on successful login: window.location.href = 'dashboard/index.html';
+    </script>
+
+<script type="module" src="../js/auth.js"></script>
+</body>
+</html>

@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<!-- Head and layout structure -->
+<body>
+    <div class="dashboard-layout">
+        <!-- Admin Sidebar -->
+        <main class="dashboard-content">
+            <h2>Platform Settings</h2>
+            <div class="card">
+                <form id="settings-form">
+                    <div class="form-group">
+                        <label for="growth-bonus">Growth Bonus (%)</label>
+                        <input type="number" id="growth-bonus" value="30">
+                    </div>
+                    <div class="form-group">
+                        <label for="min-pledge">Minimum Pledge Amount</label>
+                        <input type="number" id="min-pledge" value="50">
+                    </div>
+                    <div class="form-group">
+                        <label for="max-pledge">Maximum Pledge Amount</label>
+                        <input type="number" id="max-pledge" value="5000">
+                    </div>
+                    <button type="submit" class="cta-button">Save Settings</button>
+                </form>
+            </div>
+        </main>
+    </div>
+    <!-- Firebase SDKs -->
+
+<script type="module" src="../js/admin.js"></script>
+</body>
+</html>
