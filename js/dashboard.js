@@ -2,36 +2,47 @@
 
 import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-auth.js";
-import { doc, getDoc, collection, addDoc, query, where, getDocs } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-firestore.js";
+import { doc, getDoc, updateDoc, collection, addDoc, serverTimestamp, query, where, getDocs } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-firestore.js";
 
+// --- DOM Element References ---
 const welcomeMessage = document.querySelector('.dashboard-content h2');
 const userStatusEl = document.getElementById('user-status');
 const historyTableBody = document.getElementById('history-table-body');
+
+// Page-specific form references
 const provideHelpForm = document.getElementById('provide-help-form');
+const profileForm = document.getElementById('profile-form');
+const supportForm = document.getElementById('support-form');
 
 // Listen for authentication state changes
 onAuthStateChanged(auth, async (user) => {
     if (user) {
         // User is signed in.
         const uid = user.uid;
-        
-        // Fetch user data from Firestore
         const userDocRef = doc(db, "users", uid);
         const userDocSnap = await getDoc(userDocRef);
 
         if (userDocSnap.exists()) {
             const userData = userDocSnap.data();
+            
+            // Populate common elements
             if (welcomeMessage) {
                 welcomeMessage.textContent = `Welcome, ${userData.fullName}!`;
             }
             if (userStatusEl) {
                 userStatusEl.textContent = `Status: ${userData.status}`;
             }
+
+            // --- NEW: Populate Profile Page ---
+            if (profileForm) {
+                document.getElementById('fullName').value = userData.fullName;
+                document.getElementById('email').value = userData.email;
+            }
         } else {
             console.log("No such user document!");
         }
 
-        // If on history page, load history
+        // Load history if on history page
         if (historyTableBody) {
             loadTransactionHistory(uid);
         }
@@ -55,8 +66,8 @@ if (provideHelpForm) {
                 providerId: auth.currentUser.uid,
                 amount: Number(amount),
                 status: "pending_match",
-                createdAt: new Date(),
-                receiverId: null // Not matched yet
+                createdAt: serverTimestamp(),
+                receiverId: null
             });
             alert('Your pledge has been successfully recorded!');
             provideHelpForm.reset();
@@ -68,7 +79,59 @@ if (provideHelpForm) {
     });
 }
 
-// --- LOAD HISTORY LOGIC ---
+// --- NEW: PROFILE UPDATE LOGIC ---
+if (profileForm) {
+    profileForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const newFullName = document.getElementById('fullName').value;
+        if (!auth.currentUser || !newFullName) return;
+
+        const userDocRef = doc(db, "users", auth.currentUser.uid);
+
+        try {
+            await updateDoc(userDocRef, {
+                fullName: newFullName
+            });
+            alert('Profile updated successfully!');
+        } catch (error) {
+            console.error("Error updating profile: ", error);
+            alert("Could not update your profile. Please try again.");
+        }
+    });
+}
+
+// --- NEW: SUPPORT TICKET SUBMISSION LOGIC ---
+if (supportForm) {
+    supportForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const subject = document.getElementById('subject').value;
+        const message = document.getElementById('message').value;
+
+        if (!auth.currentUser || !subject || !message) {
+            alert("Please fill out all fields.");
+            return;
+        }
+
+        try {
+            await addDoc(collection(db, "supportTickets"), {
+                userId: auth.currentUser.uid,
+                userEmail: auth.currentUser.email,
+                subject: subject,
+                message: message,
+                status: 'new',
+                createdAt: serverTimestamp()
+            });
+            alert('Support ticket submitted successfully! Our team will review it shortly.');
+            supportForm.reset();
+        } catch (error) {
+            console.error("Error submitting support ticket: ", error);
+            alert("There was an error submitting your ticket. Please try again.");
+        }
+    });
+}
+
+
+// --- LOAD HISTORY LOGIC (Unchanged) ---
 async function loadTransactionHistory(uid) {
     historyTableBody.innerHTML = '<tr><td colspan="4">Loading...</td></tr>';
     
@@ -83,7 +146,7 @@ async function loadTransactionHistory(uid) {
                 <td>${transaction.createdAt.toDate().toLocaleDateString()}</td>
                 <td>Provide Help</td>
                 <td>$${transaction.amount}</td>
-                <td>${transaction.status.replace('_', ' ')}</td>
+                <td>${transaction.status.replace(/_/g, ' ')}</td>
             </tr>
         `;
     });
@@ -92,7 +155,7 @@ async function loadTransactionHistory(uid) {
 }
 
 
-// --- LOGOUT LOGIC ---
+// --- LOGOUT LOGIC (Unchanged) ---
 document.querySelectorAll('.logout').forEach(button => {
     button.addEventListener('click', async (e) => {
         e.preventDefault();
