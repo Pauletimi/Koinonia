@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transaction History - Koinonia</title>
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+    <div class="dashboard-layout">
+        <aside class="sidebar">
+            <h1 class="sidebar-logo">Koinonia</h1>
+            <nav class="sidebar-nav">
+                <a href="index.html" class="nav-link">Dashboard</a>
+                <a href="provide-help.html" class="nav-link">Provide Help</a>
+                <a href="get-help.html" class="nav-link">Get Help</a>
+                <a href="history.html" class="nav-link active">History</a>
+                <a href="profile.html" class="nav-link">Profile</a>
+                <a href="support.html" class="nav-link">Support</a>
+                <a href="../index.html" class="nav-link logout">Logout</a>
+            </nav>
+        </aside>
+        <main class="dashboard-content">
+            <h2>Transaction History</h2>
+            <div class="card">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Type</th>
+                            <th>Amount</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="history-table-body">
+                        <!-- Populated by JavaScript from Firestore -->
+                        <tr>
+                            <td>2025-08-19</td>
+                            <td>Provide Help</td>
+                            <td>$500</td>
+                            <td>Completed</td>
+                        </tr>
+                        <tr>
+                            <td>2025-07-10</td>
+                            <td>Get Help</td>
+                            <td>$650</td>
+                            <td>Completed</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </main>
+    </div>
+    <!-- Firebase SDKs -->
+
+<script type="module" src="../js/dashboard.js"></script>
+</body>
+</html>
