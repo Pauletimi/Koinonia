@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - Koinonia</title>
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+    <div class="dashboard-layout">
+        <aside class="sidebar admin-sidebar">
+            <h1 class="sidebar-logo">Koinonia Admin</h1>
+            <nav class="sidebar-nav">
+                <a href="index.html" class="nav-link active">Dashboard</a>
+                <a href="users.html" class="nav-link">Manage Users</a>
+                <a href="transactions.html" class="nav-link">Manage Transactions</a>
+                <a href="settings.html" class="nav-link">Settings</a>
+                <a href="../index.html" class="nav-link logout">Logout</a>
+            </nav>
+        </aside>
+        <main class="dashboard-content">
+            <h2>Admin Overview</h2>
+            <div class="grid">
+                <div class="card"><h3>Total Users</h3><p id="total-users">0</p></div>
+                <div class="card"><h3>Pending Transactions</h3><p id="pending-transactions">0</p></div>
+                <div class="card"><h3>Completed Transactions</h3><p id="completed-transactions">0</p></div>
+            </div>
+        </main>
+    </div>
+    <!-- Firebase SDKs -->
+    <script type="module">
+        // Your Firebase config here. Add logic to fetch and display admin data.
+    </script>
+
+<script type="module" src="../js/admin.js"></script>
+</body>
+</html>
