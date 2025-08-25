@@ -61,7 +61,7 @@
                 }
 
                 loadRecentActivity();
-                loadTransactionQueue();
+                loadTransactionQueue(); // This will now show requests and matches
             } catch (error) {
                 console.error('Error loading dashboard data:', error);
             }
@@ -91,14 +91,14 @@
             const div = document.createElement('div');
             div.className = 'flex items-center space-x-4 p-4 hover:bg-gray-50 rounded-lg transition-colors';
             
+            const isCredit = transaction.amount > 0;
             const typeDetails = {
-                bonus: { color: 'green', icon: '🎁', sign: '+' },
-                provide: { color: 'blue', icon: '🤝', sign: '+' },
-                get: { color: 'red', icon: '🙏', sign: '-' },
-                growth: { color: 'purple', icon: '📈', sign: '+' }
+                bonus: { color: 'green', icon: '🎁'},
+                provide: { color: 'blue', icon: '🤝'},
+                get: { color: 'red', icon: '🙏'},
+                growth: { color: 'purple', icon: '📈'}
             };
-            const details = typeDetails[transaction.type] || { color: 'gray', icon: '💰', sign: '' };
-            const amount = Math.abs(transaction.amount);
+            const details = typeDetails[transaction.type] || { color: 'gray', icon: '💰'};
 
             div.innerHTML = `
                 <div class="w-10 h-10 bg-${details.color}-100 rounded-full flex items-center justify-center">
@@ -106,58 +106,91 @@
                 </div>
                 <div class="flex-1">
                     <p class="font-semibold text-gray-800">${transaction.description}</p>
-                    <p class="text-gray-600 text-sm">${transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1)} (${transaction.status})</p>
+                    <p class="text-gray-600 text-sm">${transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1)}</p>
                 </div>
                 <div class="text-right">
-                    <p class="font-bold text-${details.color}-600">${details.sign}$${amount.toFixed(2)}</p>
+                    <p class="font-bold text-${isCredit ? 'green' : 'red'}-600">${isCredit ? '+' : '-'}$${Math.abs(transaction.amount).toFixed(2)}</p>
                     <p class="text-gray-500 text-sm">${new Date(transaction.date).toLocaleDateString()}</p>
                 </div>
             `;
             return div;
         }
 
-        // Load pending help requests into the transaction queue
+        // --- CORRECTED: Load all relevant requests and matches for the user ---
         async function loadTransactionQueue() {
-            const q = query(collection(db, 'helpRequests'), where('userId', '==', currentUser.uid), where('status', '==', 'pending'));
-            const querySnapshot = await getDocs(q);
             const queueContainer = document.getElementById('transactionQueue');
-            queueContainer.innerHTML = ''; // Clear demo data
+            queueContainer.innerHTML = ''; // Clear existing items
 
-            if (querySnapshot.empty) {
-                queueContainer.innerHTML = '<p class="text-gray-500 text-center py-4">No pending transactions in your queue.</p>';
-                return;
-            }
-
-            querySnapshot.forEach((doc) => {
-                const request = doc.data();
-                const queueItem = createQueueItem(request);
-                queueContainer.appendChild(queueItem);
+            // 1. Get user's 'helpRequests' that are still pending or matched
+            const requestsQuery = query(collection(db, 'helpRequests'), where('userId', '==', currentUser.uid), where('status', 'in', ['pending', 'matched']));
+            const requestsSnapshot = await getDocs(requestsQuery);
+            requestsSnapshot.forEach(doc => {
+                queueContainer.appendChild(createQueueItem(doc.data()));
             });
+
+            // 2. Get user's 'matches' where they are either the provider or getter
+            const matchesProviderQuery = query(collection(db, 'matches'), where('providerId', '==', currentUser.uid), where('status', '==', 'pending_payment'));
+            const matchesProviderSnapshot = await getDocs(matchesProviderQuery);
+            matchesProviderSnapshot.forEach(doc => {
+                queueContainer.appendChild(createMatchItem(doc.data()));
+            });
+
+            const matchesGetterQuery = query(collection(db, 'matches'), where('getterId', '==', currentUser.uid), where('status', '==', 'pending_payment'));
+            const matchesGetterSnapshot = await getDocs(matchesGetterQuery);
+            matchesGetterSnapshot.forEach(doc => {
+                queueContainer.appendChild(createMatchItem(doc.data()));
+            });
+
+            if (queueContainer.innerHTML === '') {
+                 queueContainer.innerHTML = '<p class="text-gray-500 text-center py-4">No active orders in your queue.</p>';
+            }
         }
 
-        // Create a visual element for a queue item
+        // --- CORRECTED: Function to display a pending help request ---
         function createQueueItem(request) {
             const div = document.createElement('div');
             const isProvide = request.type === 'provide';
             const color = isProvide ? 'yellow' : 'green';
-            const title = isProvide ? 'Provide Help Order' : 'Get Help Request';
-            const description = isProvide ? 'Waiting to be matched with a recipient.' : 'Waiting to be matched with a provider.';
+            const title = isProvide ? 'Provide Help Request' : 'Get Help Request';
+            const description = `Your request is currently ${request.status} and waiting for admin action.`;
 
             div.className = `flex items-center justify-between p-4 bg-${color}-50 rounded-lg border-l-4 border-${color}-400`;
             div.innerHTML = `
                 <div>
                     <p class="font-semibold text-gray-800">${title}</p>
                     <p class="text-gray-600">${description}</p>
-                    <p class="text-sm text-gray-500">Amount: $${request.amount.toFixed(2)} • Status: ${request.status}</p>
+                    <p class="text-sm text-gray-500">Amount: $${request.amount.toFixed(2)}</p>
                 </div>
-                <button class="bg-${color}-500 text-white px-4 py-2 rounded-lg hover:bg-${color}-600 transition-colors">
-                    View Details
+                <button class="bg-gray-500 text-white px-4 py-2 rounded-lg cursor-not-allowed">
+                    Pending
+                </button>
+            `;
+            return div;
+        }
+        
+        // --- NEW: Function to display an active match ---
+        function createMatchItem(match) {
+            const div = document.createElement('div');
+            const isProvider = match.providerId === currentUser.uid;
+            const color = isProvider ? 'blue' : 'purple';
+            const title = isProvider ? `You have been matched to help ${match.getterName}` : `You have been matched to receive help from ${match.providerName}`;
+            const description = `Please follow instructions to complete the payment.`;
+
+            div.className = `flex items-center justify-between p-4 bg-${color}-50 rounded-lg border-l-4 border-${color}-400`;
+            div.innerHTML = `
+                <div>
+                    <p class="font-semibold text-gray-800">${title}</p>
+                    <p class="text-gray-600">${description}</p>
+                    <p class="text-sm text-gray-500">Amount: $${match.amount.toFixed(2)}</p>
+                </div>
+                <button class="bg-${color}-500 text-white px-4 py-2 rounded-lg hover:bg-${color}-600">
+                    View Details & Confirm
                 </button>
             `;
             return div;
         }
 
-        // Provide Help function (Now creates a 'frozen' Mavro transaction)
+        // --- CORRECTED: Provide Help function - simplified to only create a request ---
         window.provideHelp = async function() {
             const amountInput = prompt('How much would you like to provide? (Minimum $100)');
             if (!amountInput) return;
@@ -169,73 +202,35 @@
             }
 
             try {
-                const now = new Date();
-                const releaseDate = new Date(now.setDate(now.getDate() + 30));
-
-                // 1. Create the 'Provide Help' request
                 await addDoc(collection(db, 'helpRequests'), {
                     userId: currentUser.uid,
                     userName: currentUser.name,
                     type: 'provide',
                     amount: amount,
-                    status: 'pending', // Will be updated to 'matched' by admin
+                    status: 'pending',
                     createdAt: new Date().toISOString()
                 });
 
-                // 2. Create the corresponding 'frozen' Mavro transaction
-                await addDoc(collection(db, 'mavroTransactions'), {
-                    userId: currentUser.uid,
-                    userName: currentUser.name,
-                    type: 'provide',
-                    description: `Provided help of $${amount}`,
-                    amount: amount,
-                    status: 'frozen', // This is key. It's not available for withdrawal yet.
-                    date: new Date().toISOString(),
-                    growthReleaseDate: releaseDate.toISOString()
-                });
-
-                alert(`Your offer to provide $${amount} has been recorded. It will mature in 30 days.`);
+                alert(`Your request to provide $${amount} has been submitted. It is now pending admin matching.`);
                 loadDashboardData();
             } catch (error) {
                 alert('Error creating request: ' + error.message);
             }
         };
         
-        // Get Help function (Now checks for available/matured balance)
+        // --- CORRECTED: Get Help function - simplified to only create a request ---
         window.getHelp = async function() {
+            // Admin will now be responsible for verifying the user's balance
+            const amountInput = prompt(`How much help would you like to request?\n(Admin will verify your available Mavro balance before matching).`);
+            if (!amountInput) return;
+            
+            const amount = parseFloat(amountInput);
+            if (isNaN(amount) || amount <= 0) {
+                alert('Please enter a valid amount.');
+                return;
+            }
+            
             try {
-                // 1. Calculate the user's actual withdrawable balance from matured Mavro
-                const mavroQuery = query(collection(db, 'mavroTransactions'), where('userId', '==', currentUser.uid));
-                const mavroSnapshot = await getDocs(mavroQuery);
-                let withdrawableBalance = 0;
-                const now = new Date();
-
-                mavroSnapshot.forEach(doc => {
-                    const t = doc.data();
-                    const releaseDate = new Date(t.growthReleaseDate || 0);
-                    // Money is withdrawable if it's a bonus OR if it's a 'provide' that has matured
-                    if ( (t.type === 'provide' && t.status !== 'frozen') || (t.type === 'bonus') || (t.type === 'growth') ) {
-                       withdrawableBalance += t.amount;
-                    } else if (t.type === 'get') {
-                        withdrawableBalance -= t.amount; // Subtract previous withdrawals
-                    }
-                });
-                
-                if (withdrawableBalance <= 0) {
-                    alert("You have no matured funds available for withdrawal.");
-                    return;
-                }
-
-                const amountInput = prompt(`How much help do you need?\nYour maximum available balance is $${withdrawableBalance.toFixed(2)}.`);
-                if (!amountInput) return;
-                
-                const amount = parseFloat(amountInput);
-                if (isNaN(amount) || amount <= 0 || amount > withdrawableBalance) {
-                    alert('Invalid amount. Please enter a value up to your available balance.');
-                    return;
-                }
-
-                // 2. Create the 'Get Help' request
                 await addDoc(collection(db, 'helpRequests'), {
                     userId: currentUser.uid,
                     userName: currentUser.name,
@@ -245,28 +240,11 @@
                     createdAt: new Date().toISOString()
                 });
 
-                // 3. Create a debit transaction and update the main balance
-                await addDoc(collection(db, 'mavroTransactions'), {
-                    userId: currentUser.uid,
-                    userName: currentUser.name,
-                    type: 'get',
-                    description: `Requested help of $${amount}`,
-                    amount: -amount, // Negative amount for withdrawal
-                    status: 'completed',
-                    date: new Date().toISOString()
-                });
-                
-                // 4. Update the user's main mavroBalance
-                const newBalance = currentUser.mavroBalance - amount;
-                await updateDoc(doc(db, 'users', currentUser.uid), {
-                    mavroBalance: newBalance
-                });
-
-                alert(`Your request for $${amount} has been submitted successfully.`);
+                alert(`Your request for $${amount} has been submitted. It is now pending admin matching.`);
                 loadDashboardData();
 
             } catch (error) {
-                alert('Error creating get help request: ' + error.message);
+                alert('Error creating request: ' + error.message);
             }
         };
 
@@ -346,14 +324,14 @@
                         <div class="text-center">
                             <div class="text-4xl mb-4">🤝</div>
                             <h3 class="text-2xl font-bold mb-2">Provide Help</h3>
-                            <p class="text-green-100">Help other community members and grow your Mavro by 30% monthly</p>
+                            <p class="text-green-100">Request to provide help and be matched by an admin.</p>
                         </div>
                     </button>
                     <button onclick="getHelp()" class="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-8 rounded-2xl hover:from-blue-600 hover:to-blue-700 transition-all transform hover:scale-105 shadow-lg">
                         <div class="text-center">
                             <div class="text-4xl mb-4">🙏</div>
                             <h3 class="text-2xl font-bold mb-2">Get Help</h3>
-                            <p class="text-blue-100">Request assistance from the community when you need it</p>
+                            <p class="text-blue-100">Request to get help and be matched by an admin.</p>
                         </div>
                     </button>
                 </div>
@@ -382,8 +360,7 @@
 
                 <!-- Transaction Queue -->
                 <div class="bg-white rounded-2xl shadow-sm p-6 mb-8">
-                    <h3 class="text-xl font-bold text-gray-800 mb-6">Transaction Queue</h3>
-                    <!-- REMOVED DEMO DATA - This will now be populated by JavaScript -->
+                    <h3 class="text-xl font-bold text-gray-800 mb-6">Active Orders & Requests</h3>
                     <div id="transactionQueue" class="space-y-4">
                         <!-- Dynamic queue items will be loaded here -->
                     </div>
