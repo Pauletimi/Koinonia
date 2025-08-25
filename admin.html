@@ -60,7 +60,7 @@
             loadSystemSettings();
             // --- NEW: Load pending requests for matching ---
             loadHelpRequests();
-            // --- NEW: Load completed matches ---
+            // --- NEW: Load completed matches on initial page load ---
             loadCompletedMatches();
         });
 
@@ -275,7 +275,7 @@
             new Chart(revenueCtx, { type: 'bar', data: { labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'], datasets: [{ label: 'Revenue', data: [1200, 1900, 2500, 3200, 4500, 6700], backgroundColor: 'rgba(34, 197, 94, 0.8)', borderColor: 'rgb(34, 197, 94)', borderWidth: 1 }] }, options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } } });
         }
 
-        // --- NEW: Functions for the Manual Matching System ---
+        // Functions for the Manual Matching System
         async function loadHelpRequests() {
             const requestsQuery = query(collection(db, 'helpRequests'), where('status', '==', 'pending'));
             const snapshot = await getDocs(requestsQuery);
@@ -283,8 +283,11 @@
             pendingGetters = [];
             snapshot.forEach(doc => {
                 const request = { id: doc.id, ...doc.data() };
-                if (request.type === 'provide') pendingProviders.push(request);
-                else if (request.type === 'get') pendingGetters.push(request);
+                if (request.type === 'provide') {
+                    pendingProviders.push(request);
+                } else if (request.type === 'get') {
+                    pendingGetters.push(request);
+                }
             });
             displayHelpRequests();
         }
@@ -402,7 +405,7 @@
             return div;
         }
 
-        // --- Existing Functions below ---
+        // Load system settings
         async function loadSystemSettings() {
             const settingsDoc = await getDoc(doc(db, "systemSettings", "mainConfig"));
             if (settingsDoc.exists()) {
@@ -414,6 +417,7 @@
             }
         }
 
+        // Save system settings
         window.saveSystemSettings = async function() {
             const settings = {
                 returnRate: parseFloat(document.getElementById('settingReturnRate').value),
@@ -430,6 +434,7 @@
             }
         };
 
+        // Admin functions
         window.editUser = function(userId) {
             const user = allUsers.find(u => u.id === userId);
             if (user) {
@@ -467,6 +472,7 @@
             } catch (error) { alert('Error resolving ticket: ' + error.message); }
         };
 
+        // Tab switching
         window.showTab = function(tabName) {
             const tabs = document.querySelectorAll('.tab-content');
             tabs.forEach(tab => tab.classList.add('hidden'));
@@ -480,12 +486,14 @@
             event.target.classList.add('bg-blue-500', 'text-white');
         };
 
+        // Search users
         window.searchUsers = function() {
             const searchTerm = document.getElementById('userSearch').value.toLowerCase();
             const filteredUsers = allUsers.filter(user => user.name.toLowerCase().includes(searchTerm) || user.email.toLowerCase().includes(searchTerm));
             displayUsers(filteredUsers);
         };
 
+        // Logout function
         window.logout = function() {
             signOut(auth).then(() => {
                 localStorage.removeItem('currentUser');
@@ -524,9 +532,8 @@
             <div class="px-6 py-4">
                 <div class="flex space-x-4 overflow-x-auto pb-2">
                     <button onclick="showTab('dashboard')" class="tab-button px-4 py-2 rounded-lg bg-blue-500 text-white">Dashboard</button>
+                    <!-- --- NEW: Matching Tab Button --- -->
                     <button onclick="showTab('matching')" class="tab-button px-4 py-2 rounded-lg bg-gray-200 text-gray-700">Matching</button>
-                    <!-- --- NEW: Completed Matches Tab Button --- -->
-                    <button onclick="showTab('completedMatches')" class="tab-button px-4 py-2 rounded-lg bg-gray-200 text-gray-700">Completed Matches</button>
                     <button onclick="showTab('users')" class="tab-button px-4 py-2 rounded-lg bg-gray-200 text-gray-700">Users</button>
                     <button onclick="showTab('transactions')" class="tab-button px-4 py-2 rounded-lg bg-gray-200 text-gray-700">Transactions</button>
                     <button onclick="showTab('support')" class="tab-button px-4 py-2 rounded-lg bg-gray-200 text-gray-700">Support</button>
@@ -539,50 +546,139 @@
         <main class="p-6">
             <!-- Dashboard Tab -->
             <div id="dashboard" class="tab-content">
-                 <!-- ... existing dashboard html ... -->
+                <!-- Stats Cards -->
+                <div class="grid md:grid-cols-5 gap-6 mb-8">
+                    <div class="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-6 rounded-2xl">
+                        <h3 class="text-lg font-semibold mb-2">Total Users</h3>
+                        <p class="text-3xl font-bold" id="totalUsers">0</p>
+                    </div>
+                    <div class="bg-gradient-to-r from-green-500 to-green-600 text-white p-6 rounded-2xl">
+                        <h3 class="text-lg font-semibold mb-2">Active Users</h3>
+                        <p class="text-3xl font-bold" id="activeUsers">0</p>
+                    </div>
+                    <div class="bg-gradient-to-r from-purple-500 to-purple-600 text-white p-6 rounded-2xl">
+                        <h3 class="text-lg font-semibold mb-2">Total Investments</h3>
+                        <p class="text-3xl font-bold" id="totalInvestments">$0</p>
+                    </div>
+                    <div class="bg-gradient-to-r from-yellow-500 to-orange-500 text-white p-6 rounded-2xl">
+                        <h3 class="text-lg font-semibold mb-2">Transactions</h3>
+                        <p class="text-3xl font-bold" id="totalTransactions">0</p>
+                    </div>
+                    <div class="bg-gradient-to-r from-red-500 to-red-600 text-white p-6 rounded-2xl">
+                        <h3 class="text-lg font-semibold mb-2">Open Tickets</h3>
+                        <p class="text-3xl font-bold" id="openTickets">0</p>
+                    </div>
+                </div>
+
+                <!-- Charts -->
+                <div class="grid md:grid-cols-2 gap-6">
+                    <div class="bg-white rounded-2xl shadow-sm p-6">
+                        <h3 class="text-xl font-bold text-gray-800 mb-6">User Growth</h3>
+                        <canvas id="userGrowthChart"></canvas>
+                    </div>
+                    <div class="bg-white rounded-2xl shadow-sm p-6">
+                        <h3 class="text-xl font-bold text-gray-800 mb-6">Revenue</h3>
+                        <canvas id="revenueChart"></canvas>
+                    </div>
+                </div>
             </div>
             
-            <!-- Matching Tab -->
+            <!-- --- NEW: Matching Tab Content --- -->
             <div id="matching" class="tab-content hidden">
-                 <!-- ... existing matching html ... -->
-            </div>
-
-            <!-- --- NEW: Completed Matches Tab Content --- -->
-            <div id="completedMatches" class="tab-content hidden">
-                <div class="bg-white rounded-2xl shadow-sm p-6">
-                    <div class="flex justify-between items-center mb-6">
-                        <h3 class="text-xl font-bold text-gray-800">Completed Match History</h3>
-                        <button onclick="loadCompletedMatches()" class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors text-sm">
-                            Refresh List
-                        </button>
+                <h3 class="text-2xl font-bold text-gray-800 mb-6">Manual Matching</h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <!-- Column 1: Providers -->
+                    <div class="bg-white rounded-2xl shadow-sm p-6">
+                        <h4 class="text-xl font-bold text-gray-800 mb-4">Pending Providers (🤝)</h4>
+                        <div id="providersList" class="space-y-3 max-h-96 overflow-y-auto">
+                            <!-- Provider requests will be loaded here -->
+                        </div>
                     </div>
-                    <div id="completedMatchesList" class="space-y-4">
-                        <!-- Completed matches will be loaded here -->
+                    <!-- Column 2: Matching Controls -->
+                    <div class="bg-white rounded-2xl shadow-sm p-6 flex flex-col items-center justify-center text-center">
+                        <h4 class="text-xl font-bold text-gray-800 mb-4">Create Match</h4>
+                        <div id="selectedProviderInfo" class="mb-4 h-12 text-sm"></div>
+                        <div id="selectedGetterInfo" class="mb-6 h-12 text-sm"></div>
+                        <button id="matchButton" onclick="createMatch()" disabled class="w-full bg-gray-400 cursor-not-allowed text-white py-3 rounded-lg font-semibold transition-colors">
+                            Match Users
+                        </button>
+                        <p class="text-xs text-gray-500 mt-4">Select one user from each list to enable the match button.</p>
+                    </div>
+                    <!-- Column 3: Getters/Recipients -->
+                    <div class="bg-white rounded-2xl shadow-sm p-6">
+                        <h4 class="text-xl font-bold text-gray-800 mb-4">Pending Recipients (🙏)</h4>
+                        <div id="gettersList" class="space-y-3 max-h-96 overflow-y-auto">
+                             <!-- Getter requests will be loaded here -->
+                        </div>
                     </div>
                 </div>
             </div>
 
             <!-- Users Tab -->
             <div id="users" class="tab-content hidden">
-                 <!-- ... existing users html ... -->
+                <div class="bg-white rounded-2xl shadow-sm p-6">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-xl font-bold text-gray-800">User Management</h3>
+                        <input type="text" id="userSearch" onkeyup="searchUsers()" placeholder="Search users..." class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div id="usersList" class="grid gap-4">
+                        <!-- Users will be loaded here -->
+                    </div>
+                </div>
             </div>
 
             <!-- Transactions Tab -->
             <div id="transactions" class="tab-content hidden">
-                 <!-- ... existing transactions html ... -->
+                <div class="bg-white rounded-2xl shadow-sm p-6">
+                    <h3 class="text-xl font-bold text-gray-800 mb-6">Recent Transactions</h3>
+                    <div id="transactionsList" class="space-y-4">
+                        <!-- Transactions will be loaded here -->
+                    </div>
+                </div>
             </div>
 
             <!-- Support Tab -->
             <div id="support" class="tab-content hidden">
-                 <!-- ... existing support html ... -->
+                <div class="bg-white rounded-2xl shadow-sm p-6">
+                    <h3 class="text-xl font-bold text-gray-800 mb-6">Support Tickets</h3>
+                    <div id="ticketsList" class="space-y-4">
+                        <!-- Support tickets will be loaded here -->
+                    </div>
+                </div>
             </div>
 
             <!-- Settings Tab -->
             <div id="settings" class="tab-content hidden">
-                 <!-- ... existing settings html ... -->
+                <div class="bg-white rounded-2xl shadow-sm p-6">
+                    <h3 class="text-xl font-bold text-gray-800 mb-6">System Settings</h3>
+                    <div class="space-y-6">
+                        <div>
+                            <label class="block text-gray-700 text-sm font-medium mb-2">Monthly Return Rate (%)</label>
+                            <input type="number" id="settingReturnRate" value="30" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 text-sm font-medium mb-2">Referral Commission (%)</label>
+                            <input type="number" id="settingCommission" value="10" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 text-sm font-medium mb-2">Minimum Investment ($)</label>
+                            <input type="number" id="settingMinInvestment" value="100" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 text-sm font-medium mb-2">Platform Status</label>
+                            <select id="settingPlatformStatus" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <option value="active">Active</option>
+                                <option value="maintenance">Maintenance</option>
+                                <option value="suspended">Suspended</option>
+                            </select>
+                        </div>
+                        <button onclick="saveSystemSettings()" class="bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-600 transition-colors">
+                            Save Settings
+                        </button>
+                    </div>
+                </div>
             </div>
         </main>
     </div>
-    <!-- Script tag and closing body/html tags -->
-</body>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'974a6adc74d894bb',t:'MTc1NjExNzg2Mi4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
