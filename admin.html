@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - Koinonia</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script type="module">
+        // Import Firebase modules
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getAuth, signOut } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+        import { getFirestore, collection, getDocs, doc, updateDoc, deleteDoc, query, where, orderBy, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyC9ikNYt8QnD6FHm1MOq11HB0kTP_X8qNQ",
+            authDomain: "wealth-club-65dab.firebaseapp.com",
+            projectId: "wealth-club-65dab",
+            storageBucket: "wealth-club-65dab.firebasestorage.app",
+            messagingSenderId: "906138407714",
+            appId: "1:906138407714:web:78e002acd44d2af326cb7b",
+            measurementId: "G-8H8CZ65956"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        let currentAdmin = null;
+        let allUsers = [];
+        let allTransactions = [];
+        let allTickets = [];
+
+        // Check admin authentication on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            const userData = localStorage.getItem('currentUser');
+            const isAdmin = localStorage.getItem('isAdmin');
+            
+            if (!userData || !isAdmin || isAdmin !== 'true') {
+                window.location.href = 'login.html';
+                return;
+            }
+
+            currentAdmin = JSON.parse(userData);
+            document.getElementById('adminName').textContent = currentAdmin.name;
+            
+            loadDashboardData();
+            loadUsers();
+            loadTransactions();
+            loadSupportTickets();
+            initializeCharts();
+        });
+
+        // Load dashboard data
+        async function loadDashboardData() {
+            try {
+                // Load users
+                const usersSnapshot = await getDocs(collection(db, 'users'));
+                const totalUsers = usersSnapshot.size;
+                let activeUsers = 0;
+                let totalInvestments = 0;
+
+                usersSnapshot.forEach((doc) => {
+                    const userData = doc.data();
+                    if (userData.status === 'active') activeUsers++;
+                    totalInvestments += userData.totalInvested || 0;
+                });
+
+                // Load transactions
+                const transactionsSnapshot = await getDocs(collection(db, 'mavroTransactions'));
+                const totalTransactions = transactionsSnapshot.size;
+
+                // Load support tickets
+                const ticketsSnapshot = await getDocs(collection(db, 'supportTickets'));
+                let openTickets = 0;
+                ticketsSnapshot.forEach((doc) => {
+                    if (doc.data().status === 'open') openTickets++;
+                });
+
+                // Update dashboard
+                document.getElementById('totalUsers').textContent = totalUsers;
+                document.getElementById('activeUsers').textContent = activeUsers;
+                document.getElementById('totalInvestments').textContent = `$${totalInvestments.toFixed(2)}`;
+                document.getElementById('totalTransactions').textContent = totalTransactions;
+                document.getElementById('openTickets').textContent = openTickets;
+
+            } catch (error) {
+                console.error('Error loading dashboard data:', error);
+            }
+        }
+
+        // Load users
+        async function loadUsers() {
+            try {
+                const querySnapshot = await getDocs(collection(db, 'users'));
+                allUsers = [];
+                
+                querySnapshot.forEach((doc) => {
+                    allUsers.push({ id: doc.id, ...doc.data() });
+                });
+
+                displayUsers(allUsers);
+            } catch (error) {
+                console.error('Error loading users:', error);
+            }
+        }
+
+        // Display users
+        function displayUsers(users) {
+            const container = document.getElementById('usersList');
+            container.innerHTML = '';
+
+            users.forEach(user => {
+                const userElement = createUserElement(user);
+                container.appendChild(userElement);
+            });
+        }
+
+        // Create user element
+        function createUserElement(user) {
+            const div = document.createElement('div');
+            div.className = 'bg-white border border-gray-200 rounded-lg p-6';
+            
+            const statusColor = user.status === 'active' ? 'green' : user.status === 'suspended' ? 'red' : 'yellow';
+            
+            div.innerHTML = `
+                <div class="flex justify-between items-start">
+                    <div>
+                        <h4 class="font-semibold text-gray-800 mb-1">${user.name}</h4>
+                        <p class="text-gray-600 text-sm mb-2">${user.email}</p>
+                        <p class="text-xs text-gray-500">Joined: ${new Date(user.joinDate).toLocaleDateString()}</p>
+                        <p class="text-xs text-gray-500">Balance: $${(user.mavroBalance || 0).toFixed(2)}</p>
+                    </div>
+                    <div class="text-right">
+                        <span class="inline-block px-3 py-1 text-sm rounded-full bg-${statusColor}-100 text-${statusColor}-800 mb-2">
+                            ${user.status || 'pending'}
+                        </span>
+                        <div class="space-x-2">
+                            <button onclick="editUser('${user.id}')" class="text-blue-600 hover:text-blue-800 text-sm">Edit</button>
+                            <button onclick="suspendUser('${user.id}')" class="text-red-600 hover:text-red-800 text-sm">Suspend</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            return div;
+        }
+
+        // Load transactions
+        async function loadTransactions() {
+            try {
+                const querySnapshot = await getDocs(collection(db, 'mavroTransactions'));
+                allTransactions = [];
+                
+                querySnapshot.forEach((doc) => {
+                    allTransactions.push({ id: doc.id, ...doc.data() });
+                });
+
+                // Sort by date
+                allTransactions.sort((a, b) => new Date(b.date) - new Date(a.date));
+                displayTransactions(allTransactions);
+            } catch (error) {
+                console.error('Error loading transactions:', error);
+            }
+        }
+
+        // Display transactions
+        function displayTransactions(transactions) {
+            const container = document.getElementById('transactionsList');
+            container.innerHTML = '';
+
+            transactions.slice(0, 10).forEach(transaction => {
+                const transactionElement = createTransactionElement(transaction);
+                container.appendChild(transactionElement);
+            });
+        }
+
+        // Create transaction element
+        function createTransactionElement(transaction) {
+            const div = document.createElement('div');
+            div.className = 'bg-white border border-gray-200 rounded-lg p-4';
+            
+            div.innerHTML = `
+                <div class="flex justify-between items-center">
+                    <div>
+                        <h4 class="font-semibold text-gray-800">${transaction.description}</h4>
+                        <p class="text-gray-600 text-sm">${transaction.userName || 'Unknown User'}</p>
+                        <p class="text-xs text-gray-500">${new Date(transaction.date).toLocaleDateString()}</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="font-bold text-green-600">$${transaction.amount.toFixed(2)}</p>
+                        <p class="text-xs text-gray-500">${transaction.type}</p>
+                    </div>
+                </div>
+            `;
+            
+            return div;
+        }
+
+        // Load support tickets
+        async function loadSupportTickets() {
+            try {
+                const querySnapshot = await getDocs(collection(db, 'supportTickets'));
+                allTickets = [];
+                
+                querySnapshot.forEach((doc) => {
+                    allTickets.push({ id: doc.id, ...doc.data() });
+                });
+
+                displaySupportTickets(allTickets);
+            } catch (error) {
+                console.error('Error loading support tickets:', error);
+            }
+        }
+
+        // Display support tickets
+        function displaySupportTickets(tickets) {
+            const container = document.getElementById('ticketsList');
+            container.innerHTML = '';
+
+            tickets.forEach(ticket => {
+                const ticketElement = createTicketElement(ticket);
+                container.appendChild(ticketElement);
+            });
+        }
+
+        // Create ticket element
+        function createTicketElement(ticket) {
+            const div = document.createElement('div');
+            div.className = 'bg-white border border-gray-200 rounded-lg p-4';
+            
+            const statusColor = ticket.status === 'open' ? 'red' : ticket.status === 'resolved' ? 'green' : 'yellow';
+            
+            div.innerHTML = `
+                <div class="flex justify-between items-start">
+                    <div>
+                        <h4 class="font-semibold text-gray-800">${ticket.subject}</h4>
+                        <p class="text-gray-600 text-sm">${ticket.userName}</p>
+                        <p class="text-xs text-gray-500">${new Date(ticket.createdAt).toLocaleDateString()}</p>
+                    </div>
+                    <div class="text-right">
+                        <span class="inline-block px-3 py-1 text-sm rounded-full bg-${statusColor}-100 text-${statusColor}-800 mb-2">
+                            ${ticket.status}
+                        </span>
+                        <div>
+                            <button onclick="resolveTicket('${ticket.id}')" class="text-green-600 hover:text-green-800 text-sm">Resolve</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            return div;
+        }
+
+        // Initialize charts
+        function initializeCharts() {
+            // User Growth Chart
+            const userCtx = document.getElementById('userGrowthChart').getContext('2d');
+            new Chart(userCtx, {
+                type: 'line',
+                data: {
+                    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+                    datasets: [{
+                        label: 'New Users',
+                        data: [12, 19, 25, 32, 45, 67],
+                        borderColor: 'rgb(59, 130, 246)',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+
+            // Revenue Chart
+            const revenueCtx = document.getElementById('revenueChart').getContext('2d');
+            new Chart(revenueCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+                    datasets: [{
+                        label: 'Revenue',
+                        data: [1200, 1900, 2500, 3200, 4500, 6700],
+                        backgroundColor: 'rgba(34, 197, 94, 0.8)',
+                        borderColor: 'rgb(34, 197, 94)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        // Admin functions
+        window.editUser = function(userId) {
+            const user = allUsers.find(u => u.id === userId);
+            if (user) {
+                const newBalance = prompt(`Edit balance for ${user.name}:`, user.mavroBalance || 0);
+                if (newBalance !== null) {
+                    updateUserBalance(userId, parseFloat(newBalance));
+                }
+            }
+        };
+
+        window.suspendUser = async function(userId) {
+            if (confirm('Are you sure you want to suspend this user?')) {
+                try {
+                    await updateDoc(doc(db, 'users', userId), {
+                        status: 'suspended'
+                    });
+                    loadUsers();
+                    loadDashboardData();
+                } catch (error) {
+                    alert('Error suspending user: ' + error.message);
+                }
+            }
+        };
+
+        async function updateUserBalance(userId, newBalance) {
+            try {
+                await updateDoc(doc(db, 'users', userId), {
+                    mavroBalance: newBalance
+                });
+                loadUsers();
+                loadDashboardData();
+                alert('User balance updated successfully!');
+            } catch (error) {
+                alert('Error updating balance: ' + error.message);
+            }
+        }
+
+        window.resolveTicket = async function(ticketId) {
+            try {
+                await updateDoc(doc(db, 'supportTickets', ticketId), {
+                    status: 'resolved',
+                    updatedAt: new Date().toISOString()
+                });
+                loadSupportTickets();
+                loadDashboardData();
+            } catch (error) {
+                alert('Error resolving ticket: ' + error.message);
+            }
+        };
+
+        // Tab switching
+        window.showTab = function(tabName) {
+            // Hide all tabs
+            const tabs = document.querySelectorAll('.tab-content');
+            tabs.forEach(tab => tab.classList.add('hidden'));
+            
+            // Remove active class from all tab buttons
+            const tabButtons = document.querySelectorAll('.tab-button');
+            tabButtons.forEach(button => {
+                button.classList.remove('bg-blue-500', 'text-white');
+                button.classList.add('bg-gray-200', 'text-gray-700');
+            });
+            
+            // Show selected tab
+            document.getElementById(tabName).classList.remove('hidden');
+            
+            // Add active class to clicked button
+            event.target.classList.remove('bg-gray-200', 'text-gray-700');
+            event.target.classList.add('bg-blue-500', 'text-white');
+        };
+
+        // Search users
+        window.searchUsers = function() {
+            const searchTerm = document.getElementById('userSearch').value.toLowerCase();
+            const filteredUsers = allUsers.filter(user => 
+                user.name.toLowerCase().includes(searchTerm) || 
+                user.email.toLowerCase().includes(searchTerm)
+            );
+            displayUsers(filteredUsers);
+        };
+
+        // Logout function
+        window.logout = function() {
+            signOut(auth).then(() => {
+                localStorage.removeItem('currentUser');
+                localStorage.removeItem('isAdmin');
+                window.location.href = 'index.html';
+            }).catch((error) => {
+                console.error('Error signing out:', error);
+            });
+        };
+    </script>
+</head>
+<body>
+    <div class="min-h-screen bg-gray-50">
+        <!-- Header -->
+        <header class="bg-white shadow-sm border-b">
+            <div class="px-6 py-4">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center space-x-4">
+                        <div class="w-10 h-10 bg-gradient-to-r from-red-500 to-red-600 rounded-full flex items-center justify-center">
+                            <span class="text-white font-bold">A</span>
+                        </div>
+                        <h1 class="text-2xl font-bold text-gray-800">Admin Panel</h1>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <span class="text-gray-600">Welcome, <span id="adminName" class="font-semibold"></span></span>
+                        <button onclick="logout()" class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-colors">
+                            Logout
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Tab Navigation -->
+        <div class="bg-white border-b">
+            <div class="px-6 py-4">
+                <div class="flex space-x-4">
+                    <button onclick="showTab('dashboard')" class="tab-button px-4 py-2 rounded-lg bg-blue-500 text-white">Dashboard</button>
+                    <button onclick="showTab('users')" class="tab-button px-4 py-2 rounded-lg bg-gray-200 text-gray-700">Users</button>
+                    <button onclick="showTab('transactions')" class="tab-button px-4 py-2 rounded-lg bg-gray-200 text-gray-700">Transactions</button>
+                    <button onclick="showTab('support')" class="tab-button px-4 py-2 rounded-lg bg-gray-200 text-gray-700">Support</button>
+                    <button onclick="showTab('settings')" class="tab-button px-4 py-2 rounded-lg bg-gray-200 text-gray-700">Settings</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <main class="p-6">
+            <!-- Dashboard Tab -->
+            <div id="dashboard" class="tab-content">
+                <!-- Stats Cards -->
+                <div class="grid md:grid-cols-5 gap-6 mb-8">
+                    <div class="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-6 rounded-2xl">
+                        <h3 class="text-lg font-semibold mb-2">Total Users</h3>
+                        <p class="text-3xl font-bold" id="totalUsers">0</p>
+                    </div>
+                    <div class="bg-gradient-to-r from-green-500 to-green-600 text-white p-6 rounded-2xl">
+                        <h3 class="text-lg font-semibold mb-2">Active Users</h3>
+                        <p class="text-3xl font-bold" id="activeUsers">0</p>
+                    </div>
+                    <div class="bg-gradient-to-r from-purple-500 to-purple-600 text-white p-6 rounded-2xl">
+                        <h3 class="text-lg font-semibold mb-2">Total Investments</h3>
+                        <p class="text-3xl font-bold" id="totalInvestments">$0</p>
+                    </div>
+                    <div class="bg-gradient-to-r from-yellow-500 to-orange-500 text-white p-6 rounded-2xl">
+                        <h3 class="text-lg font-semibold mb-2">Transactions</h3>
+                        <p class="text-3xl font-bold" id="totalTransactions">0</p>
+                    </div>
+                    <div class="bg-gradient-to-r from-red-500 to-red-600 text-white p-6 rounded-2xl">
+                        <h3 class="text-lg font-semibold mb-2">Open Tickets</h3>
+                        <p class="text-3xl font-bold" id="openTickets">0</p>
+                    </div>
+                </div>
+
+                <!-- Charts -->
+                <div class="grid md:grid-cols-2 gap-6">
+                    <div class="bg-white rounded-2xl shadow-sm p-6">
+                        <h3 class="text-xl font-bold text-gray-800 mb-6">User Growth</h3>
+                        <canvas id="userGrowthChart"></canvas>
+                    </div>
+                    <div class="bg-white rounded-2xl shadow-sm p-6">
+                        <h3 class="text-xl font-bold text-gray-800 mb-6">Revenue</h3>
+                        <canvas id="revenueChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Users Tab -->
+            <div id="users" class="tab-content hidden">
+                <div class="bg-white rounded-2xl shadow-sm p-6">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-xl font-bold text-gray-800">User Management</h3>
+                        <input type="text" id="userSearch" onkeyup="searchUsers()" placeholder="Search users..." class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div id="usersList" class="grid gap-4">
+                        <!-- Users will be loaded here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Transactions Tab -->
+            <div id="transactions" class="tab-content hidden">
+                <div class="bg-white rounded-2xl shadow-sm p-6">
+                    <h3 class="text-xl font-bold text-gray-800 mb-6">Recent Transactions</h3>
+                    <div id="transactionsList" class="space-y-4">
+                        <!-- Transactions will be loaded here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Support Tab -->
+            <div id="support" class="tab-content hidden">
+                <div class="bg-white rounded-2xl shadow-sm p-6">
+                    <h3 class="text-xl font-bold text-gray-800 mb-6">Support Tickets</h3>
+                    <div id="ticketsList" class="space-y-4">
+                        <!-- Support tickets will be loaded here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings Tab -->
+            <div id="settings" class="tab-content hidden">
+                <div class="bg-white rounded-2xl shadow-sm p-6">
+                    <h3 class="text-xl font-bold text-gray-800 mb-6">System Settings</h3>
+                    <div class="space-y-6">
+                        <div>
+                            <label class="block text-gray-700 text-sm font-medium mb-2">Monthly Return Rate (%)</label>
+                            <input type="number" value="30" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 text-sm font-medium mb-2">Referral Commission (%)</label>
+                            <input type="number" value="10" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 text-sm font-medium mb-2">Minimum Investment ($)</label>
+                            <input type="number" value="100" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 text-sm font-medium mb-2">Platform Status</label>
+                            <select class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <option value="active">Active</option>
+                                <option value="maintenance">Maintenance</option>
+                                <option value="suspended">Suspended</option>
+                            </select>
+                        </div>
+                        <button class="bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-600 transition-colors">
+                            Save Settings
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'974a6adc74d894bb',t:'MTc1NjExNzg2Mi4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
