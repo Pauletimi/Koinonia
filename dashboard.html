@@ -8,8 +8,8 @@
     <script type="module">
         // Import Firebase modules
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
-        import { getAuth, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
-        import { getFirestore, doc, getDoc, collection, query, where, getDocs, addDoc, updateDoc } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+        import { getAuth, signOut } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+        import { getFirestore, doc, getDoc, collection, query, where, getDocs, addDoc, updateDoc, serverTimestamp, Timestamp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
         // Firebase configuration
         const firebaseConfig = {
@@ -47,14 +47,19 @@
             if (!currentUser) return;
 
             try {
-                // Load user's current data
-                const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+                const userDocRef = doc(db, 'users', currentUser.uid);
+                const userDoc = await getDoc(userDocRef);
+                
                 if (userDoc.exists()) {
                     const userData = userDoc.data();
-                    document.getElementById('totalMavro').textContent = `$${userData.mavroBalance?.toFixed(2) || '0.00'}`;
+                    // Update the local currentUser object with fresh data
+                    currentUser = { uid: currentUser.uid, ...userData };
+                    localStorage.setItem('currentUser', JSON.stringify(currentUser));
+                    
+                    document.getElementById('totalMavro').textContent = `$${(userData.mavroBalance || 0).toFixed(2)}`;
+                    document.getElementById('accountStatus').textContent = userData.status || 'Active';
                 }
 
-                // Load recent transactions
                 loadRecentActivity();
                 loadTransactionQueue();
             } catch (error) {
@@ -62,105 +67,206 @@
             }
         }
 
-        // Load recent activity
+        // Load recent activity from mavroTransactions
         async function loadRecentActivity() {
-            try {
-                const q = query(
-                    collection(db, 'mavroTransactions'),
-                    where('userId', '==', currentUser.uid)
-                );
-                const querySnapshot = await getDocs(q);
-                
-                const activityContainer = document.getElementById('recentActivity');
-                activityContainer.innerHTML = '';
+            const q = query(collection(db, 'mavroTransactions'), where('userId', '==', currentUser.uid));
+            const querySnapshot = await getDocs(q);
+            const activityContainer = document.getElementById('recentActivity');
+            activityContainer.innerHTML = ''; // Clear previous entries
 
-                querySnapshot.forEach((doc) => {
-                    const transaction = doc.data();
-                    const activityItem = createActivityItem(transaction);
-                    activityContainer.appendChild(activityItem);
-                });
-            } catch (error) {
-                console.error('Error loading recent activity:', error);
+            if (querySnapshot.empty) {
+                activityContainer.innerHTML = '<p class="text-gray-500 text-center py-4">No recent activity.</p>';
+                return;
             }
+
+            querySnapshot.forEach((doc) => {
+                const transaction = doc.data();
+                const activityItem = createActivityItem(transaction);
+                activityContainer.appendChild(activityItem);
+            });
         }
 
-        // Create activity item element
+        // Create a visual element for an activity item
         function createActivityItem(transaction) {
             const div = document.createElement('div');
             div.className = 'flex items-center space-x-4 p-4 hover:bg-gray-50 rounded-lg transition-colors';
             
-            const iconColor = transaction.type === 'bonus' ? 'green' : 
-                             transaction.type === 'provide' ? 'blue' : 'purple';
-            const icon = transaction.type === 'bonus' ? '+' : 
-                        transaction.type === 'provide' ? '↗' : '👥';
-            
+            const typeDetails = {
+                bonus: { color: 'green', icon: '🎁', sign: '+' },
+                provide: { color: 'blue', icon: '🤝', sign: '+' },
+                get: { color: 'red', icon: '🙏', sign: '-' },
+                growth: { color: 'purple', icon: '📈', sign: '+' }
+            };
+            const details = typeDetails[transaction.type] || { color: 'gray', icon: '💰', sign: '' };
+            const amount = Math.abs(transaction.amount);
+
             div.innerHTML = `
-                <div class="w-10 h-10 bg-${iconColor}-100 rounded-full flex items-center justify-center">
-                    <span class="text-${iconColor}-600 font-bold">${icon}</span>
+                <div class="w-10 h-10 bg-${details.color}-100 rounded-full flex items-center justify-center">
+                    <span class="text-xl">${details.icon}</span>
                 </div>
                 <div class="flex-1">
                     <p class="font-semibold text-gray-800">${transaction.description}</p>
-                    <p class="text-gray-600 text-sm">${transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1)} transaction</p>
+                    <p class="text-gray-600 text-sm">${transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1)} (${transaction.status})</p>
                 </div>
                 <div class="text-right">
-                    <p class="font-bold text-${iconColor}-600">+$${transaction.amount.toFixed(2)}</p>
+                    <p class="font-bold text-${details.color}-600">${details.sign}$${amount.toFixed(2)}</p>
                     <p class="text-gray-500 text-sm">${new Date(transaction.date).toLocaleDateString()}</p>
                 </div>
             `;
-            
             return div;
         }
 
-        // Load transaction queue
-        function loadTransactionQueue() {
+        // Load pending help requests into the transaction queue
+        async function loadTransactionQueue() {
+            const q = query(collection(db, 'helpRequests'), where('userId', '==', currentUser.uid), where('status', '==', 'pending'));
+            const querySnapshot = await getDocs(q);
             const queueContainer = document.getElementById('transactionQueue');
-            // This would load actual pending transactions from the database
-            // For now, showing sample data
+            queueContainer.innerHTML = ''; // Clear demo data
+
+            if (querySnapshot.empty) {
+                queueContainer.innerHTML = '<p class="text-gray-500 text-center py-4">No pending transactions in your queue.</p>';
+                return;
+            }
+
+            querySnapshot.forEach((doc) => {
+                const request = doc.data();
+                const queueItem = createQueueItem(request);
+                queueContainer.appendChild(queueItem);
+            });
         }
 
-        // Provide Help function
-        window.provideHelp = async function() {
-            const amount = prompt('How much would you like to provide in help? (Minimum $100)');
-            if (amount && parseFloat(amount) >= 100) {
-                try {
-                    // Create help request in database
-                    await addDoc(collection(db, 'helpRequests'), {
-                        userId: currentUser.uid,
-                        type: 'provide',
-                        amount: parseFloat(amount),
-                        status: 'pending',
-                        createdAt: new Date().toISOString()
-                    });
+        // Create a visual element for a queue item
+        function createQueueItem(request) {
+            const div = document.createElement('div');
+            const isProvide = request.type === 'provide';
+            const color = isProvide ? 'yellow' : 'green';
+            const title = isProvide ? 'Provide Help Order' : 'Get Help Request';
+            const description = isProvide ? 'Waiting to be matched with a recipient.' : 'Waiting to be matched with a provider.';
 
-                    alert(`Great! You've requested to provide $${amount} in help. You'll be matched with someone who needs help within 24-48 hours. Your Mavro will grow by 30% monthly on this amount.`);
-                    loadDashboardData();
-                } catch (error) {
-                    alert('Error creating help request: ' + error.message);
-                }
-            } else if (amount) {
-                alert('Minimum help amount is $100');
+            div.className = `flex items-center justify-between p-4 bg-${color}-50 rounded-lg border-l-4 border-${color}-400`;
+            div.innerHTML = `
+                <div>
+                    <p class="font-semibold text-gray-800">${title}</p>
+                    <p class="text-gray-600">${description}</p>
+                    <p class="text-sm text-gray-500">Amount: $${request.amount.toFixed(2)} • Status: ${request.status}</p>
+                </div>
+                <button class="bg-${color}-500 text-white px-4 py-2 rounded-lg hover:bg-${color}-600 transition-colors">
+                    View Details
+                </button>
+            `;
+            return div;
+        }
+
+        // Provide Help function (Now creates a 'frozen' Mavro transaction)
+        window.provideHelp = async function() {
+            const amountInput = prompt('How much would you like to provide? (Minimum $100)');
+            if (!amountInput) return;
+
+            const amount = parseFloat(amountInput);
+            if (isNaN(amount) || amount < 100) {
+                alert('Invalid amount. Minimum is $100.');
+                return;
+            }
+
+            try {
+                const now = new Date();
+                const releaseDate = new Date(now.setDate(now.getDate() + 30));
+
+                // 1. Create the 'Provide Help' request
+                await addDoc(collection(db, 'helpRequests'), {
+                    userId: currentUser.uid,
+                    userName: currentUser.name,
+                    type: 'provide',
+                    amount: amount,
+                    status: 'pending', // Will be updated to 'matched' by admin
+                    createdAt: new Date().toISOString()
+                });
+
+                // 2. Create the corresponding 'frozen' Mavro transaction
+                await addDoc(collection(db, 'mavroTransactions'), {
+                    userId: currentUser.uid,
+                    userName: currentUser.name,
+                    type: 'provide',
+                    description: `Provided help of $${amount}`,
+                    amount: amount,
+                    status: 'frozen', // This is key. It's not available for withdrawal yet.
+                    date: new Date().toISOString(),
+                    growthReleaseDate: releaseDate.toISOString()
+                });
+
+                alert(`Your offer to provide $${amount} has been recorded. It will mature in 30 days.`);
+                loadDashboardData();
+            } catch (error) {
+                alert('Error creating request: ' + error.message);
             }
         };
-
-        // Get Help function
+        
+        // Get Help function (Now checks for available/matured balance)
         window.getHelp = async function() {
-            const amount = prompt('How much help do you need? (Based on your available Mavro balance)');
-            if (amount && parseFloat(amount) > 0) {
-                try {
-                    // Create get help request in database
-                    await addDoc(collection(db, 'helpRequests'), {
-                        userId: currentUser.uid,
-                        type: 'get',
-                        amount: parseFloat(amount),
-                        status: 'pending',
-                        createdAt: new Date().toISOString()
-                    });
+            try {
+                // 1. Calculate the user's actual withdrawable balance from matured Mavro
+                const mavroQuery = query(collection(db, 'mavroTransactions'), where('userId', '==', currentUser.uid));
+                const mavroSnapshot = await getDocs(mavroQuery);
+                let withdrawableBalance = 0;
+                const now = new Date();
 
-                    alert(`Your request for $${amount} has been submitted. You'll be matched with a helper within 24-48 hours. Please be ready to provide your payment details when matched.`);
-                    loadDashboardData();
-                } catch (error) {
-                    alert('Error creating help request: ' + error.message);
+                mavroSnapshot.forEach(doc => {
+                    const t = doc.data();
+                    const releaseDate = new Date(t.growthReleaseDate || 0);
+                    // Money is withdrawable if it's a bonus OR if it's a 'provide' that has matured
+                    if ( (t.type === 'provide' && t.status !== 'frozen') || (t.type === 'bonus') || (t.type === 'growth') ) {
+                       withdrawableBalance += t.amount;
+                    } else if (t.type === 'get') {
+                        withdrawableBalance -= t.amount; // Subtract previous withdrawals
+                    }
+                });
+                
+                if (withdrawableBalance <= 0) {
+                    alert("You have no matured funds available for withdrawal.");
+                    return;
                 }
+
+                const amountInput = prompt(`How much help do you need?\nYour maximum available balance is $${withdrawableBalance.toFixed(2)}.`);
+                if (!amountInput) return;
+                
+                const amount = parseFloat(amountInput);
+                if (isNaN(amount) || amount <= 0 || amount > withdrawableBalance) {
+                    alert('Invalid amount. Please enter a value up to your available balance.');
+                    return;
+                }
+
+                // 2. Create the 'Get Help' request
+                await addDoc(collection(db, 'helpRequests'), {
+                    userId: currentUser.uid,
+                    userName: currentUser.name,
+                    type: 'get',
+                    amount: amount,
+                    status: 'pending',
+                    createdAt: new Date().toISOString()
+                });
+
+                // 3. Create a debit transaction and update the main balance
+                await addDoc(collection(db, 'mavroTransactions'), {
+                    userId: currentUser.uid,
+                    userName: currentUser.name,
+                    type: 'get',
+                    description: `Requested help of $${amount}`,
+                    amount: -amount, // Negative amount for withdrawal
+                    status: 'completed',
+                    date: new Date().toISOString()
+                });
+                
+                // 4. Update the user's main mavroBalance
+                const newBalance = currentUser.mavroBalance - amount;
+                await updateDoc(doc(db, 'users', currentUser.uid), {
+                    mavroBalance: newBalance
+                });
+
+                alert(`Your request for $${amount} has been submitted successfully.`);
+                loadDashboardData();
+
+            } catch (error) {
+                alert('Error creating get help request: ' + error.message);
             }
         };
 
@@ -259,12 +365,12 @@
                         <div class="bg-gradient-to-r from-yellow-400 to-orange-500 text-white p-6 rounded-xl">
                             <h4 class="text-lg font-semibold mb-2">Total Mavro</h4>
                             <p class="text-3xl font-bold" id="totalMavro">$0.00</p>
-                            <p class="text-yellow-100 text-sm mt-2">Available Balance</p>
+                            <p class="text-yellow-100 text-sm mt-2">Overall Balance</p>
                         </div>
                         <div class="bg-gradient-to-r from-green-400 to-green-500 text-white p-6 rounded-xl">
                             <h4 class="text-lg font-semibold mb-2">Monthly Growth</h4>
                             <p class="text-3xl font-bold">30%</p>
-                            <p class="text-green-100 text-sm mt-2">Guaranteed Return</p>
+                            <p class="text-green-100 text-sm mt-2">On Matured Mavro</p>
                         </div>
                         <div class="bg-gradient-to-r from-purple-400 to-purple-500 text-white p-6 rounded-xl">
                             <h4 class="text-lg font-semibold mb-2">Status</h4>
@@ -277,27 +383,9 @@
                 <!-- Transaction Queue -->
                 <div class="bg-white rounded-2xl shadow-sm p-6 mb-8">
                     <h3 class="text-xl font-bold text-gray-800 mb-6">Transaction Queue</h3>
+                    <!-- REMOVED DEMO DATA - This will now be populated by JavaScript -->
                     <div id="transactionQueue" class="space-y-4">
-                        <div class="flex items-center justify-between p-4 bg-yellow-50 rounded-lg border-l-4 border-yellow-400">
-                            <div>
-                                <p class="font-semibold text-gray-800">Provide Help Order</p>
-                                <p class="text-gray-600">You have been matched to help User #12345</p>
-                                <p class="text-sm text-gray-500">Amount: $500.00 • Due: 2 days</p>
-                            </div>
-                            <button class="bg-yellow-500 text-white px-4 py-2 rounded-lg hover:bg-yellow-600 transition-colors">
-                                View Details
-                            </button>
-                        </div>
-                        <div class="flex items-center justify-between p-4 bg-green-50 rounded-lg border-l-4 border-green-400">
-                            <div>
-                                <p class="font-semibold text-gray-800">Get Help Request</p>
-                                <p class="text-gray-600">Your request is being processed</p>
-                                <p class="text-sm text-gray-500">Amount: $300.00 • Status: Pending</p>
-                            </div>
-                            <button class="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition-colors">
-                                Track Progress
-                            </button>
-                        </div>
+                        <!-- Dynamic queue items will be loaded here -->
                     </div>
                 </div>
 
@@ -305,19 +393,7 @@
                 <div class="bg-white rounded-2xl shadow-sm p-6">
                     <h3 class="text-xl font-bold text-gray-800 mb-6">Recent Activity</h3>
                     <div id="recentActivity" class="space-y-4">
-                        <div class="flex items-center space-x-4 p-4 hover:bg-gray-50 rounded-lg transition-colors">
-                            <div class="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                                <span class="text-green-600 font-bold">+</span>
-                            </div>
-                            <div class="flex-1">
-                                <p class="font-semibold text-gray-800">Welcome Bonus</p>
-                                <p class="text-gray-600 text-sm">Initial bonus for joining Koinonia</p>
-                            </div>
-                            <div class="text-right">
-                                <p class="font-bold text-green-600">+$100.00</p>
-                                <p class="text-gray-500 text-sm">Today</p>
-                            </div>
-                        </div>
+                        <!-- Dynamic activity items will be loaded here -->
                     </div>
                 </div>
             </main>
