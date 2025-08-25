@@ -3,39 +3,165 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - Koinonia</title>
-    <link rel="stylesheet" href="css/style.css">
+    <title>Register - Koinonia</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+        // Import Firebase modules
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getAuth, createUserWithEmailAndPassword } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+        import { getFirestore, doc, setDoc, collection, addDoc } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyC9ikNYt8QnD6FHm1MOq11HB0kTP_X8qNQ",
+            authDomain: "wealth-club-65dab.firebaseapp.com",
+            projectId: "wealth-club-65dab",
+            storageBucket: "wealth-club-65dab.firebasestorage.app",
+            messagingSenderId: "906138407714",
+            appId: "1:906138407714:web:78e002acd44d2af326cb7b",
+            measurementId: "G-8H8CZ65956"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // Registration function
+        window.register = async function() {
+            const name = document.getElementById('registerName').value;
+            const email = document.getElementById('registerEmail').value;
+            const password = document.getElementById('registerPassword').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+            const referrerEmail = document.getElementById('referrerEmail').value;
+            const agreeTerms = document.getElementById('agreeTerms').checked;
+
+            if (!name || !email || !password || !confirmPassword) {
+                alert('Please fill in all required fields');
+                return;
+            }
+
+            if (password !== confirmPassword) {
+                alert('Passwords do not match');
+                return;
+            }
+
+            if (password.length < 6) {
+                alert('Password must be at least 6 characters long');
+                return;
+            }
+
+            if (!agreeTerms) {
+                alert('Please agree to the Terms and Conditions');
+                return;
+            }
+
+            try {
+                const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                const user = userCredential.user;
+
+                // Create user profile in Firestore
+                await setDoc(doc(db, 'users', user.uid), {
+                    name: name,
+                    email: email,
+                    referrerEmail: referrerEmail || null,
+                    joinDate: new Date().toISOString(),
+                    mavroBalance: 100, // Welcome bonus
+                    status: 'active',
+                    isAdmin: false,
+                    totalReferrals: 0,
+                    totalEarnings: 0,
+                    phone: '',
+                    country: '',
+                    isVerified: false
+                });
+
+                // Create initial Mavro transaction
+                await addDoc(collection(db, 'mavroTransactions'), {
+                    userId: user.uid,
+                    type: 'bonus',
+                    description: 'Welcome bonus for joining Koinonia',
+                    amount: 100,
+                    status: 'available',
+                    date: new Date().toISOString()
+                });
+
+                alert('Registration successful! Welcome to Koinonia! You have received a $100 welcome bonus.');
+                window.location.href = 'dashboard.html';
+            } catch (error) {
+                alert('Registration failed: ' + error.message);
+            }
+        };
+
+        // Form submission handler
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.getElementById('registerForm');
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                register();
+            });
+        });
+    </script>
 </head>
 <body>
-    <header>
-        <nav class="navbar">
-            <a href="index.html" class="nav-logo">Koinonia</a>
-        </nav>
-    </header>
+    <div class="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900 flex items-center justify-center p-6">
+        <div class="bg-white/10 backdrop-blur-md rounded-2xl p-8 w-full max-w-md border border-white/20">
+            <div class="text-center mb-8">
+                <div class="w-16 h-16 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <span class="text-white font-bold text-2xl">K</span>
+                </div>
+                <h2 class="text-3xl font-bold text-white mb-2">Join Koinonia</h2>
+                <p class="text-white/70">Create your account and start your financial journey</p>
+            </div>
 
-    <main class="main-content container auth-container">
-        <div class="card">
-            <h2>Welcome Back!</h2>
-            <form id="login-form">
-                <div class="form-group">
-                    <label for="email">Email</label>
-                    <input type="email" id="email" required>
+            <form id="registerForm" class="space-y-6">
+                <div>
+                    <label class="block text-white/80 text-sm font-medium mb-2">Full Name</label>
+                    <input type="text" id="registerName" required class="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent" placeholder="Enter your full name">
                 </div>
-                <div class="form-group">
-                    <label for="password">Password</label>
-                    <input type="password" id="password" required>
+
+                <div>
+                    <label class="block text-white/80 text-sm font-medium mb-2">Email Address</label>
+                    <input type="email" id="registerEmail" required class="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent" placeholder="Enter your email">
                 </div>
-                <button type="submit" class="cta-button">Login</button>
+
+                <div>
+                    <label class="block text-white/80 text-sm font-medium mb-2">Password</label>
+                    <input type="password" id="registerPassword" required class="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent" placeholder="Create a password (min 6 characters)">
+                </div>
+
+                <div>
+                    <label class="block text-white/80 text-sm font-medium mb-2">Confirm Password</label>
+                    <input type="password" id="confirmPassword" required class="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent" placeholder="Confirm your password">
+                </div>
+
+                <div>
+                    <label class="block text-white/80 text-sm font-medium mb-2">Referrer's Email (Optional)</label>
+                    <input type="email" id="referrerEmail" class="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent" placeholder="Who referred you?">
+                </div>
+
+                <div class="flex items-start space-x-3">
+                    <input type="checkbox" id="agreeTerms" required class="mt-1 w-4 h-4 text-yellow-400 bg-white/10 border-white/20 rounded focus:ring-yellow-400">
+                    <label for="agreeTerms" class="text-white/80 text-sm">
+                        I agree to the <a href="#" class="text-yellow-400 hover:text-yellow-300">Terms and Conditions</a> and <a href="#" class="text-yellow-400 hover:text-yellow-300">Privacy Policy</a>
+                    </label>
+                </div>
+
+                <button type="submit" class="w-full bg-gradient-to-r from-yellow-400 to-orange-500 text-white py-3 rounded-lg font-semibold hover:from-yellow-500 hover:to-orange-600 transition-all transform hover:scale-105">
+                    Create Account
+                </button>
             </form>
-            <p class="auth-switch">Don't have an account? <a href="signup.html">Sign Up</a></p>
+
+            <div class="text-center mt-6">
+                <p class="text-white/70">Already have an account? 
+                    <a href="login.html" class="text-yellow-400 hover:text-yellow-300 font-medium">Login here</a>
+                </p>
+            </div>
+
+            <div class="text-center mt-4">
+                <a href="index.html" class="text-white/60 hover:text-white text-sm">← Back to Home</a>
+            </div>
         </div>
-    </main>
-
-    <footer class="footer">
-        <p>&copy; 2025 Koinonia. All rights reserved.</p>
-    </footer>
-
-    <!-- All JavaScript logic is now handled externally -->
-    <script type="module" src="js/auth.js"></script>
-</body>
+    </div>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'974a5bec641094bb',t:'MTc1NjExNzI1MC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
