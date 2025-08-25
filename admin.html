@@ -10,7 +10,8 @@
         // Import Firebase modules
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
         import { getAuth, signOut } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
-        import { getFirestore, collection, getDocs, doc, updateDoc, deleteDoc, query, where, orderBy, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+        // --- ADDED setDoc to imports ---
+        import { getFirestore, collection, getDocs, doc, setDoc, updateDoc, deleteDoc, query, where, orderBy, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
         // Firebase configuration
         const firebaseConfig = {
@@ -51,6 +52,8 @@
             loadTransactions();
             loadSupportTickets();
             initializeCharts();
+            // --- ADDED: Load existing settings into the form ---
+            loadSystemSettings();
         });
 
         // Load dashboard data
@@ -315,6 +318,37 @@
             });
         }
 
+        // --- ADDED FUNCTION TO LOAD SETTINGS ---
+        async function loadSystemSettings() {
+            const settingsDoc = await getDoc(doc(db, "systemSettings", "mainConfig"));
+            if (settingsDoc.exists()) {
+                const settings = settingsDoc.data();
+                document.getElementById('settingReturnRate').value = settings.returnRate || 30;
+                document.getElementById('settingCommission').value = settings.commissionRate || 10;
+                document.getElementById('settingMinInvestment').value = settings.minInvestment || 100;
+                document.getElementById('settingPlatformStatus').value = settings.platformStatus || 'active';
+            }
+        }
+
+        // --- ADDED FUNCTION TO SAVE SETTINGS ---
+        window.saveSystemSettings = async function() {
+            const settings = {
+                returnRate: parseFloat(document.getElementById('settingReturnRate').value),
+                commissionRate: parseFloat(document.getElementById('settingCommission').value),
+                minInvestment: parseFloat(document.getElementById('settingMinInvestment').value),
+                platformStatus: document.getElementById('settingPlatformStatus').value
+            };
+
+            try {
+                // Use setDoc to create or overwrite the settings document
+                await setDoc(doc(db, "systemSettings", "mainConfig"), settings);
+                alert("System settings saved successfully!");
+            } catch (error) {
+                console.error("Error saving settings: ", error);
+                alert("Failed to save settings: " + error.message);
+            }
+        };
+
         // Admin functions
         window.editUser = function(userId) {
             const user = allUsers.find(u => u.id === userId);
@@ -525,25 +559,30 @@
                     <div class="space-y-6">
                         <div>
                             <label class="block text-gray-700 text-sm font-medium mb-2">Monthly Return Rate (%)</label>
-                            <input type="number" value="30" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <!-- --- ADDED ID --- -->
+                            <input type="number" id="settingReturnRate" value="30" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                         </div>
                         <div>
                             <label class="block text-gray-700 text-sm font-medium mb-2">Referral Commission (%)</label>
-                            <input type="number" value="10" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <!-- --- ADDED ID --- -->
+                            <input type="number" id="settingCommission" value="10" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                         </div>
                         <div>
                             <label class="block text-gray-700 text-sm font-medium mb-2">Minimum Investment ($)</label>
-                            <input type="number" value="100" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <!-- --- ADDED ID --- -->
+                            <input type="number" id="settingMinInvestment" value="100" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                         </div>
                         <div>
                             <label class="block text-gray-700 text-sm font-medium mb-2">Platform Status</label>
-                            <select class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <!-- --- ADDED ID --- -->
+                            <select id="settingPlatformStatus" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                                 <option value="active">Active</option>
                                 <option value="maintenance">Maintenance</option>
                                 <option value="suspended">Suspended</option>
                             </select>
                         </div>
-                        <button class="bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-600 transition-colors">
+                        <!-- --- ADDED onclick HANDLER --- -->
+                        <button onclick="saveSystemSettings()" class="bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-600 transition-colors">
                             Save Settings
                         </button>
                     </div>
