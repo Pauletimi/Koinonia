@@ -61,7 +61,7 @@
                 }
 
                 loadRecentActivity();
-                loadTransactionQueue(); // This will now show requests and matches
+                loadTransactionQueue();
             } catch (error) {
                 console.error('Error loading dashboard data:', error);
             }
@@ -93,12 +93,12 @@
             
             const isCredit = transaction.amount > 0;
             const typeDetails = {
-                bonus: { color: 'green', icon: '🎁'},
-                provide: { color: 'blue', icon: '🤝'},
-                get: { color: 'red', icon: '🙏'},
-                growth: { color: 'purple', icon: '📈'}
+                bonus: { color: 'green', icon: '🎁' },
+                provide: { color: 'blue', icon: '🤝' },
+                get: { color: 'red', icon: '🙏' },
+                growth: { color: 'purple', icon: '📈' }
             };
-            const details = typeDetails[transaction.type] || { color: 'gray', icon: '💰'};
+            const details = typeDetails[transaction.type] || { color: 'gray', icon: '💰' };
 
             div.innerHTML = `
                 <div class="w-10 h-10 bg-${details.color}-100 rounded-full flex items-center justify-center">
@@ -116,43 +116,43 @@
             return div;
         }
 
-        // --- CORRECTED: Load all relevant requests and matches for the user ---
+        // --- UPDATED: Load all user's active requests AND matches ---
         async function loadTransactionQueue() {
             const queueContainer = document.getElementById('transactionQueue');
-            queueContainer.innerHTML = ''; // Clear existing items
+            queueContainer.innerHTML = ''; 
 
-            // 1. Get user's 'helpRequests' that are still pending or matched
-            const requestsQuery = query(collection(db, 'helpRequests'), where('userId', '==', currentUser.uid), where('status', 'in', ['pending', 'matched']));
+            // 1. Get user's 'helpRequests' that are still pending
+            const requestsQuery = query(collection(db, 'helpRequests'), where('userId', '==', currentUser.uid), where('status', '==', 'pending'));
             const requestsSnapshot = await getDocs(requestsQuery);
             requestsSnapshot.forEach(doc => {
                 queueContainer.appendChild(createQueueItem(doc.data()));
             });
 
-            // 2. Get user's 'matches' where they are either the provider or getter
+            // 2. Get user's 'matches' where they are an active participant
             const matchesProviderQuery = query(collection(db, 'matches'), where('providerId', '==', currentUser.uid), where('status', '==', 'pending_payment'));
-            const matchesProviderSnapshot = await getDocs(matchesProviderQuery);
-            matchesProviderSnapshot.forEach(doc => {
+            const providerSnapshot = await getDocs(matchesProviderQuery);
+            providerSnapshot.forEach(doc => {
                 queueContainer.appendChild(createMatchItem(doc.data()));
             });
 
             const matchesGetterQuery = query(collection(db, 'matches'), where('getterId', '==', currentUser.uid), where('status', '==', 'pending_payment'));
-            const matchesGetterSnapshot = await getDocs(matchesGetterQuery);
-            matchesGetterSnapshot.forEach(doc => {
+            const getterSnapshot = await getDocs(matchesGetterQuery);
+            getterSnapshot.forEach(doc => {
                 queueContainer.appendChild(createMatchItem(doc.data()));
             });
 
             if (queueContainer.innerHTML === '') {
-                 queueContainer.innerHTML = '<p class="text-gray-500 text-center py-4">No active orders in your queue.</p>';
+                queueContainer.innerHTML = '<p class="text-gray-500 text-center py-4">No active orders in your queue.</p>';
             }
         }
 
-        // --- CORRECTED: Function to display a pending help request ---
+        // --- UPDATED: Create a visual element for a PENDING request ---
         function createQueueItem(request) {
             const div = document.createElement('div');
             const isProvide = request.type === 'provide';
             const color = isProvide ? 'yellow' : 'green';
             const title = isProvide ? 'Provide Help Request' : 'Get Help Request';
-            const description = `Your request is currently ${request.status} and waiting for admin action.`;
+            const description = `Your request is ${request.status} and is waiting for an admin to match you.`;
 
             div.className = `flex items-center justify-between p-4 bg-${color}-50 rounded-lg border-l-4 border-${color}-400`;
             div.innerHTML = `
@@ -162,19 +162,19 @@
                     <p class="text-sm text-gray-500">Amount: $${request.amount.toFixed(2)}</p>
                 </div>
                 <button class="bg-gray-500 text-white px-4 py-2 rounded-lg cursor-not-allowed">
-                    Pending
+                    Pending Admin
                 </button>
             `;
             return div;
         }
-        
-        // --- NEW: Function to display an active match ---
+
+        // --- NEW: Create a visual element for a CONFIRMED match ---
         function createMatchItem(match) {
             const div = document.createElement('div');
             const isProvider = match.providerId === currentUser.uid;
             const color = isProvider ? 'blue' : 'purple';
-            const title = isProvider ? `You have been matched to help ${match.getterName}` : `You have been matched to receive help from ${match.providerName}`;
-            const description = `Please follow instructions to complete the payment.`;
+            const title = isProvider ? `You have been matched to help ${match.getterName}` : `You will receive help from ${match.providerName}`;
+            const description = `Please check your email or contact support for payment details.`;
 
             div.className = `flex items-center justify-between p-4 bg-${color}-50 rounded-lg border-l-4 border-${color}-400`;
             div.innerHTML = `
@@ -184,13 +184,13 @@
                     <p class="text-sm text-gray-500">Amount: $${match.amount.toFixed(2)}</p>
                 </div>
                 <button class="bg-${color}-500 text-white px-4 py-2 rounded-lg hover:bg-${color}-600">
-                    View Details & Confirm
+                    View Details
                 </button>
             `;
             return div;
         }
 
-        // --- CORRECTED: Provide Help function - simplified to only create a request ---
+        // --- UPDATED: Provide Help function is simplified ---
         window.provideHelp = async function() {
             const amountInput = prompt('How much would you like to provide? (Minimum $100)');
             if (!amountInput) return;
@@ -202,6 +202,7 @@
             }
 
             try {
+                // Only create the help request. Admin will handle the rest.
                 await addDoc(collection(db, 'helpRequests'), {
                     userId: currentUser.uid,
                     userName: currentUser.name,
@@ -218,19 +219,48 @@
             }
         };
         
-        // --- CORRECTED: Get Help function - simplified to only create a request ---
+        // --- UPDATED: Get Help function with strict validation ---
         window.getHelp = async function() {
-            // Admin will now be responsible for verifying the user's balance
-            const amountInput = prompt(`How much help would you like to request?\n(Admin will verify your available Mavro balance before matching).`);
-            if (!amountInput) return;
-            
-            const amount = parseFloat(amountInput);
-            if (isNaN(amount) || amount <= 0) {
-                alert('Please enter a valid amount.');
-                return;
-            }
-            
             try {
+                // 1. Calculate the user's actual withdrawable balance from matured Mavro
+                const mavroQuery = query(collection(db, 'mavroTransactions'), where('userId', '==', currentUser.uid));
+                const mavroSnapshot = await getDocs(mavroQuery);
+                let withdrawableBalance = 0;
+                const now = new Date();
+
+                mavroSnapshot.forEach(doc => {
+                    const t = doc.data();
+                    const releaseDate = new Date(t.growthReleaseDate || 0);
+                    
+                    // A 'provide' transaction is only withdrawable if its status is 'completed' and the release date has passed.
+                    if (t.type === 'provide' && t.status === 'completed' && releaseDate <= now) {
+                       withdrawableBalance += t.amount;
+                    } 
+                    // Bonuses and growth are also withdrawable
+                    else if ((t.type === 'bonus' || t.type === 'growth') && t.status === 'completed') {
+                       withdrawableBalance += t.amount;
+                    }
+                    // Subtract any previous withdrawals
+                    else if (t.type === 'get') {
+                        withdrawableBalance -= Math.abs(t.amount); 
+                    }
+                });
+                
+                if (withdrawableBalance <= 0) {
+                    alert("You have no matured and confirmed funds available for withdrawal. You can only request to get help after you have successfully provided help and it has matured.");
+                    return;
+                }
+
+                const amountInput = prompt(`How much help do you need?\nYour maximum available balance is $${withdrawableBalance.toFixed(2)}.`);
+                if (!amountInput) return;
+                
+                const amount = parseFloat(amountInput);
+                if (isNaN(amount) || amount <= 0 || amount > withdrawableBalance) {
+                    alert('Invalid amount. Please enter a value up to your available balance.');
+                    return;
+                }
+
+                // 2. Create the 'Get Help' request for the admin to handle
                 await addDoc(collection(db, 'helpRequests'), {
                     userId: currentUser.uid,
                     userName: currentUser.name,
@@ -240,11 +270,11 @@
                     createdAt: new Date().toISOString()
                 });
 
-                alert(`Your request for $${amount} has been submitted. It is now pending admin matching.`);
+                alert(`Your request for $${amount} has been submitted. Admin will verify your balance and process the match.`);
                 loadDashboardData();
 
             } catch (error) {
-                alert('Error creating request: ' + error.message);
+                alert('Error creating get help request: ' + error.message);
             }
         };
 
@@ -331,7 +361,7 @@
                         <div class="text-center">
                             <div class="text-4xl mb-4">🙏</div>
                             <h3 class="text-2xl font-bold mb-2">Get Help</h3>
-                            <p class="text-blue-100">Request to get help and be matched by an admin.</p>
+                            <p class="text-blue-100">Request help from your matured and confirmed funds.</p>
                         </div>
                     </button>
                 </div>
