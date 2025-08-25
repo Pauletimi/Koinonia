@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Referrals - Koinonia</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+        // Import Firebase modules
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getAuth, signOut } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+        import { getFirestore, doc, getDoc, collection, query, where, getDocs } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyC9ikNYt8QnD6FHm1MOq11HB0kTP_X8qNQ",
+            authDomain: "wealth-club-65dab.firebaseapp.com",
+            projectId: "wealth-club-65dab",
+            storageBucket: "wealth-club-65dab.firebasestorage.app",
+            messagingSenderId: "906138407714",
+            appId: "1:906138407714:web:78e002acd44d2af326cb7b",
+            measurementId: "G-8H8CZ65956"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        let currentUser = null;
+        let referralLink = '';
+
+        // Check authentication on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            const userData = localStorage.getItem('currentUser');
+            if (!userData) {
+                window.location.href = 'login.html';
+                return;
+            }
+
+            currentUser = JSON.parse(userData);
+            document.getElementById('userName').textContent = currentUser.name;
+            generateReferralLink();
+            loadReferralData();
+            loadReferralList();
+        });
+
+        // Generate referral link
+        function generateReferralLink() {
+            const baseUrl = window.location.origin;
+            referralLink = `${baseUrl}/register.html?ref=${currentUser.uid}`;
+            document.getElementById('referralLink').value = referralLink;
+        }
+
+        // Copy referral link
+        window.copyReferralLink = function() {
+            const linkInput = document.getElementById('referralLink');
+            linkInput.select();
+            linkInput.setSelectionRange(0, 99999);
+            
+            try {
+                document.execCommand('copy');
+                const button = document.getElementById('copyButton');
+                const originalText = button.textContent;
+                button.textContent = 'Copied!';
+                button.classList.add('bg-green-500');
+                button.classList.remove('bg-blue-500');
+                
+                setTimeout(() => {
+                    button.textContent = originalText;
+                    button.classList.remove('bg-green-500');
+                    button.classList.add('bg-blue-500');
+                }, 2000);
+            } catch (err) {
+                alert('Failed to copy link. Please copy manually.');
+            }
+        };
+
+        // Load referral data
+        async function loadReferralData() {
+            if (!currentUser) return;
+
+            try {
+                // Load user's referral statistics
+                const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+                if (userDoc.exists()) {
+                    const userData = userDoc.data();
+                    document.getElementById('totalReferrals').textContent = userData.totalReferrals || 0;
+                    document.getElementById('totalEarnings').textContent = `$${(userData.referralEarnings || 0).toFixed(2)}`;
+                }
+
+                // Count active referrals
+                const q = query(
+                    collection(db, 'users'),
+                    where('referredBy', '==', currentUser.uid)
+                );
+                const querySnapshot = await getDocs(q);
+                
+                let activeReferrals = 0;
+                querySnapshot.forEach((doc) => {
+                    const userData = doc.data();
+                    if (userData.status === 'active') {
+                        activeReferrals++;
+                    }
+                });
+
+                document.getElementById('activeReferrals').textContent = activeReferrals;
+            } catch (error) {
+                console.error('Error loading referral data:', error);
+            }
+        }
+
+        // Load referral list
+        async function loadReferralList() {
+            try {
+                const q = query(
+                    collection(db, 'users'),
+                    where('referredBy', '==', currentUser.uid)
+                );
+                const querySnapshot = await getDocs(q);
+                
+                const referralContainer = document.getElementById('referralList');
+                referralContainer.innerHTML = '';
+
+                if (querySnapshot.empty) {
+                    referralContainer.innerHTML = '<p class="text-gray-500 text-center py-8">No referrals yet. Start sharing your link to earn commissions!</p>';
+                    return;
+                }
+
+                querySnapshot.forEach((doc) => {
+                    const referralData = doc.data();
+                    const referralElement = createReferralElement(referralData);
+                    referralContainer.appendChild(referralElement);
+                });
+            } catch (error) {
+                console.error('Error loading referral list:', error);
+            }
+        }
+
+        // Create referral element
+        function createReferralElement(referralData) {
+            const div = document.createElement('div');
+            div.className = 'bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow';
+            
+            const statusColor = referralData.status === 'active' ? 'green' : 'yellow';
+            const statusText = referralData.status === 'active' ? 'Active' : 'Pending';
+            const joinDate = new Date(referralData.joinDate).toLocaleDateString();
+            const commission = (referralData.totalInvested || 0) * 0.1; // 10% commission
+            
+            div.innerHTML = `
+                <div class="flex items-start justify-between">
+                    <div class="flex items-start space-x-4">
+                        <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                            <span class="text-blue-600 font-bold text-lg">${referralData.name.charAt(0).toUpperCase()}</span>
+                        </div>
+                        <div>
+                            <h4 class="font-semibold text-gray-800 mb-1">${referralData.name}</h4>
+                            <p class="text-sm text-gray-600 mb-2">${referralData.email}</p>
+                            <p class="text-xs text-gray-500">Joined: ${joinDate}</p>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <span class="inline-block px-3 py-1 text-sm rounded-full bg-${statusColor}-100 text-${statusColor}-800 mb-2">
+                            ${statusText}
+                        </span>
+                        <p class="font-bold text-green-600">$${commission.toFixed(2)}</p>
+                        <p class="text-xs text-gray-500">Commission Earned</p>
+                    </div>
+                </div>
+            `;
+            
+            return div;
+        }
+
+        // Share on social media
+        window.shareOnFacebook = function() {
+            const url = encodeURIComponent(referralLink);
+            const text = encodeURIComponent('Join me on Koinonia and start earning 30% monthly returns on your investments!');
+            window.open(`https://www.facebook.com/sharer/sharer.php?u=${url}&quote=${text}`, '_blank');
+        };
+
+        window.shareOnTwitter = function() {
+            const url = encodeURIComponent(referralLink);
+            const text = encodeURIComponent('Join me on Koinonia and start earning 30% monthly returns! 💰');
+            window.open(`https://twitter.com/intent/tweet?url=${url}&text=${text}`, '_blank');
+        };
+
+        window.shareOnWhatsApp = function() {
+            const text = encodeURIComponent(`Join me on Koinonia and start earning 30% monthly returns on your investments! ${referralLink}`);
+            window.open(`https://wa.me/?text=${text}`, '_blank');
+        };
+
+        window.shareOnTelegram = function() {
+            const url = encodeURIComponent(referralLink);
+            const text = encodeURIComponent('Join me on Koinonia and start earning 30% monthly returns!');
+            window.open(`https://t.me/share/url?url=${url}&text=${text}`, '_blank');
+        };
+
+        // Logout function
+        window.logout = function() {
+            signOut(auth).then(() => {
+                localStorage.removeItem('currentUser');
+                localStorage.removeItem('isAdmin');
+                window.location.href = 'index.html';
+            }).catch((error) => {
+                console.error('Error signing out:', error);
+            });
+        };
+    </script>
+</head>
+<body>
+    <div class="min-h-screen bg-gray-50">
+        <!-- Header -->
+        <header class="bg-white shadow-sm border-b">
+            <div class="px-6 py-4">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center space-x-4">
+                        <div class="w-10 h-10 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full flex items-center justify-center">
+                            <span class="text-white font-bold">K</span>
+                        </div>
+                        <h1 class="text-2xl font-bold text-gray-800">Referrals</h1>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <span class="text-gray-600">Welcome, <span id="userName" class="font-semibold"></span></span>
+                        <button onclick="logout()" class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-colors">
+                            Logout
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="flex">
+            <!-- Sidebar -->
+            <nav class="w-64 bg-white shadow-sm h-screen sticky top-0">
+                <div class="p-6">
+                    <ul class="space-y-2">
+                        <li>
+                            <a href="dashboard.html" class="w-full text-left px-4 py-3 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors flex items-center">
+                                📊 Dashboard
+                            </a>
+                        </li>
+                        <li>
+                            <a href="my-page.html" class="w-full text-left px-4 py-3 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors flex items-center">
+                                👤 My Page
+                            </a>
+                        </li>
+                        <li>
+                            <a href="mavro.html" class="w-full text-left px-4 py-3 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors flex items-center">
+                                💰 Mavro
+                            </a>
+                        </li>
+                        <li>
+                            <a href="referrals.html" class="w-full text-left px-4 py-3 rounded-lg bg-blue-50 text-blue-600 font-medium flex items-center">
+                                👥 Referrals
+                            </a>
+                        </li>
+                        <li>
+                            <a href="support.html" class="w-full text-left px-4 py-3 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors flex items-center">
+                                🎧 Support
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </nav>
+
+            <!-- Main Content -->
+            <main class="flex-1 p-6">
+                <!-- Referral Statistics -->
+                <div class="grid md:grid-cols-3 gap-6 mb-8">
+                    <div class="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-6 rounded-2xl">
+                        <h3 class="text-lg font-semibold mb-2">Total Referrals</h3>
+                        <p class="text-3xl font-bold" id="totalReferrals">0</p>
+                        <p class="text-blue-100 text-sm mt-2">All Time</p>
+                    </div>
+                    <div class="bg-gradient-to-r from-green-500 to-green-600 text-white p-6 rounded-2xl">
+                        <h3 class="text-lg font-semibold mb-2">Active Referrals</h3>
+                        <p class="text-3xl font-bold" id="activeReferrals">0</p>
+                        <p class="text-green-100 text-sm mt-2">Currently Active</p>
+                    </div>
+                    <div class="bg-gradient-to-r from-purple-500 to-purple-600 text-white p-6 rounded-2xl">
+                        <h3 class="text-lg font-semibold mb-2">Total Earnings</h3>
+                        <p class="text-3xl font-bold" id="totalEarnings">$0.00</p>
+                        <p class="text-purple-100 text-sm mt-2">Commission Earned</p>
+                    </div>
+                </div>
+
+                <!-- Referral Link -->
+                <div class="bg-white rounded-2xl shadow-sm p-6 mb-8">
+                    <h3 class="text-xl font-bold text-gray-800 mb-6">Your Referral Link</h3>
+                    <div class="flex space-x-4">
+                        <input type="text" id="referralLink" readonly class="flex-1 px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-700 font-mono text-sm">
+                        <button id="copyButton" onclick="copyReferralLink()" class="bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-600 transition-colors">
+                            Copy Link
+                        </button>
+                    </div>
+                    <p class="text-gray-600 text-sm mt-4">Share this link with friends and family to earn 10% commission on their investments!</p>
+                </div>
+
+                <!-- Social Media Sharing -->
+                <div class="bg-white rounded-2xl shadow-sm p-6 mb-8">
+                    <h3 class="text-xl font-bold text-gray-800 mb-6">Share on Social Media</h3>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <button onclick="shareOnFacebook()" class="bg-blue-600 text-white p-4 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center space-x-2">
+                            <span class="text-xl">📘</span>
+                            <span>Facebook</span>
+                        </button>
+                        <button onclick="shareOnTwitter()" class="bg-sky-500 text-white p-4 rounded-lg hover:bg-sky-600 transition-colors flex items-center justify-center space-x-2">
+                            <span class="text-xl">🐦</span>
+                            <span>Twitter</span>
+                        </button>
+                        <button onclick="shareOnWhatsApp()" class="bg-green-500 text-white p-4 rounded-lg hover:bg-green-600 transition-colors flex items-center justify-center space-x-2">
+                            <span class="text-xl">📱</span>
+                            <span>WhatsApp</span>
+                        </button>
+                        <button onclick="shareOnTelegram()" class="bg-blue-500 text-white p-4 rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center space-x-2">
+                            <span class="text-xl">✈️</span>
+                            <span>Telegram</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Commission Structure -->
+                <div class="bg-white rounded-2xl shadow-sm p-6 mb-8">
+                    <h3 class="text-xl font-bold text-gray-800 mb-6">Commission Structure</h3>
+                    <div class="grid md:grid-cols-2 gap-6">
+                        <div class="bg-green-50 border border-green-200 rounded-lg p-6">
+                            <h4 class="font-semibold text-green-800 mb-3">Direct Referral</h4>
+                            <p class="text-3xl font-bold text-green-600 mb-2">10%</p>
+                            <p class="text-green-700 text-sm">Earn 10% commission on every investment made by users you directly refer.</p>
+                        </div>
+                        <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+                            <h4 class="font-semibold text-blue-800 mb-3">Bonus Rewards</h4>
+                            <p class="text-3xl font-bold text-blue-600 mb-2">$50</p>
+                            <p class="text-blue-700 text-sm">Get a $50 bonus for every 5 active referrals you bring to the platform.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Referral List -->
+                <div class="bg-white rounded-2xl shadow-sm p-6">
+                    <h3 class="text-xl font-bold text-gray-800 mb-6">Your Referrals</h3>
+                    <div id="referralList" class="space-y-4">
+                        <!-- Referrals will be loaded here -->
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'974a6587a34294bb',t:'MTc1NjExNzY0My4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
