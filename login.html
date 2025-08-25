@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Koinonia</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+        // Import Firebase modules
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getAuth, signInWithEmailAndPassword } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+        import { getFirestore, doc, getDoc } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyC9ikNYt8QnD6FHm1MOq11HB0kTP_X8qNQ",
+            authDomain: "wealth-club-65dab.firebaseapp.com",
+            projectId: "wealth-club-65dab",
+            storageBucket: "wealth-club-65dab.firebasestorage.app",
+            messagingSenderId: "906138407714",
+            appId: "1:906138407714:web:78e002acd44d2af326cb7b",
+            measurementId: "G-8H8CZ65956"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // Login function
+        window.login = async function() {
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPassword').value;
+
+            if (!email || !password) {
+                alert('Please enter both email and password');
+                return;
+            }
+
+            try {
+                const userCredential = await signInWithEmailAndPassword(auth, email, password);
+                const user = userCredential.user;
+
+                // Check if admin
+                if (email === 'Pauletimi@gmail.com' && password === 'Odudele118') {
+                    // Store admin status in localStorage
+                    localStorage.setItem('isAdmin', 'true');
+                    localStorage.setItem('currentUser', JSON.stringify({
+                        uid: user.uid,
+                        email: email,
+                        name: 'Paul Etimi',
+                        isAdmin: true
+                    }));
+                    window.location.href = 'admin.html';
+                } else {
+                    // Get user data from Firestore
+                    const userDoc = await getDoc(doc(db, 'users', user.uid));
+                    if (userDoc.exists()) {
+                        const userData = { uid: user.uid, ...userDoc.data() };
+                        localStorage.setItem('currentUser', JSON.stringify(userData));
+                        localStorage.setItem('isAdmin', 'false');
+                        window.location.href = 'dashboard.html';
+                    } else {
+                        alert('User profile not found. Please contact support.');
+                    }
+                }
+            } catch (error) {
+                let errorMessage = 'Login failed: ';
+                switch (error.code) {
+                    case 'auth/user-not-found':
+                        errorMessage += 'No account found with this email address.';
+                        break;
+                    case 'auth/wrong-password':
+                        errorMessage += 'Incorrect password.';
+                        break;
+                    case 'auth/invalid-email':
+                        errorMessage += 'Invalid email address.';
+                        break;
+                    case 'auth/too-many-requests':
+                        errorMessage += 'Too many failed attempts. Please try again later.';
+                        break;
+                    default:
+                        errorMessage += error.message;
+                }
+                alert(errorMessage);
+            }
+        };
+
+        // Form submission handler
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.getElementById('loginForm');
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                login();
+            });
+        });
+    </script>
+</head>
+<body>
+    <div class="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900 flex items-center justify-center p-6">
+        <div class="bg-white/10 backdrop-blur-md rounded-2xl p-8 w-full max-w-md border border-white/20">
+            <div class="text-center mb-8">
+                <div class="w-16 h-16 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <span class="text-white font-bold text-2xl">K</span>
+                </div>
+                <h2 class="text-3xl font-bold text-white mb-2">Welcome Back</h2>
+                <p class="text-white/70">Login to your Koinonia account</p>
+            </div>
+
+            <form id="loginForm" class="space-y-6">
+                <div>
+                    <label class="block text-white/80 text-sm font-medium mb-2">Email Address</label>
+                    <input type="email" id="loginEmail" required class="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent" placeholder="Enter your email">
+                </div>
+
+                <div>
+                    <label class="block text-white/80 text-sm font-medium mb-2">Password</label>
+                    <input type="password" id="loginPassword" required class="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent" placeholder="Enter your password">
+                </div>
+
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center">
+                        <input type="checkbox" id="rememberMe" class="w-4 h-4 text-yellow-400 bg-white/10 border-white/20 rounded focus:ring-yellow-400">
+                        <label for="rememberMe" class="ml-2 text-white/80 text-sm">Remember me</label>
+                    </div>
+                    <a href="#" class="text-yellow-400 hover:text-yellow-300 text-sm">Forgot Password?</a>
+                </div>
+
+                <button type="submit" class="w-full bg-gradient-to-r from-yellow-400 to-orange-500 text-white py-3 rounded-lg font-semibold hover:from-yellow-500 hover:to-orange-600 transition-all transform hover:scale-105">
+                    Login
+                </button>
+            </form>
+
+            <div class="text-center mt-6">
+                <p class="text-white/70">Don't have an account? 
+                    <a href="register.html" class="text-yellow-400 hover:text-yellow-300 font-medium">Register here</a>
+                </p>
+            </div>
+
+            <div class="text-center mt-4">
+                <a href="index.html" class="text-white/60 hover:text-white text-sm">← Back to Home</a>
+            </div>
+        </div>
+    </div>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'974a5d4b36cf94bb',t:'MTc1NjExNzMwNi4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
