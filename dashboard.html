@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Koinonia</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+        // Import Firebase modules
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getAuth, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+        import { getFirestore, doc, getDoc, collection, query, where, getDocs, addDoc, updateDoc } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyC9ikNYt8QnD6FHm1MOq11HB0kTP_X8qNQ",
+            authDomain: "wealth-club-65dab.firebaseapp.com",
+            projectId: "wealth-club-65dab",
+            storageBucket: "wealth-club-65dab.firebasestorage.app",
+            messagingSenderId: "906138407714",
+            appId: "1:906138407714:web:78e002acd44d2af326cb7b",
+            measurementId: "G-8H8CZ65956"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        let currentUser = null;
+
+        // Check authentication on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            const userData = localStorage.getItem('currentUser');
+            if (!userData) {
+                window.location.href = 'login.html';
+                return;
+            }
+
+            currentUser = JSON.parse(userData);
+            document.getElementById('userName').textContent = currentUser.name;
+            loadDashboardData();
+        });
+
+        // Load dashboard data
+        async function loadDashboardData() {
+            if (!currentUser) return;
+
+            try {
+                // Load user's current data
+                const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+                if (userDoc.exists()) {
+                    const userData = userDoc.data();
+                    document.getElementById('totalMavro').textContent = `$${userData.mavroBalance?.toFixed(2) || '0.00'}`;
+                }
+
+                // Load recent transactions
+                loadRecentActivity();
+                loadTransactionQueue();
+            } catch (error) {
+                console.error('Error loading dashboard data:', error);
+            }
+        }
+
+        // Load recent activity
+        async function loadRecentActivity() {
+            try {
+                const q = query(
+                    collection(db, 'mavroTransactions'),
+                    where('userId', '==', currentUser.uid)
+                );
+                const querySnapshot = await getDocs(q);
+                
+                const activityContainer = document.getElementById('recentActivity');
+                activityContainer.innerHTML = '';
+
+                querySnapshot.forEach((doc) => {
+                    const transaction = doc.data();
+                    const activityItem = createActivityItem(transaction);
+                    activityContainer.appendChild(activityItem);
+                });
+            } catch (error) {
+                console.error('Error loading recent activity:', error);
+            }
+        }
+
+        // Create activity item element
+        function createActivityItem(transaction) {
+            const div = document.createElement('div');
+            div.className = 'flex items-center space-x-4 p-4 hover:bg-gray-50 rounded-lg transition-colors';
+            
+            const iconColor = transaction.type === 'bonus' ? 'green' : 
+                             transaction.type === 'provide' ? 'blue' : 'purple';
+            const icon = transaction.type === 'bonus' ? '+' : 
+                        transaction.type === 'provide' ? '↗' : '👥';
+            
+            div.innerHTML = `
+                <div class="w-10 h-10 bg-${iconColor}-100 rounded-full flex items-center justify-center">
+                    <span class="text-${iconColor}-600 font-bold">${icon}</span>
+                </div>
+                <div class="flex-1">
+                    <p class="font-semibold text-gray-800">${transaction.description}</p>
+                    <p class="text-gray-600 text-sm">${transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1)} transaction</p>
+                </div>
+                <div class="text-right">
+                    <p class="font-bold text-${iconColor}-600">+$${transaction.amount.toFixed(2)}</p>
+                    <p class="text-gray-500 text-sm">${new Date(transaction.date).toLocaleDateString()}</p>
+                </div>
+            `;
+            
+            return div;
+        }
+
+        // Load transaction queue
+        function loadTransactionQueue() {
+            const queueContainer = document.getElementById('transactionQueue');
+            // This would load actual pending transactions from the database
+            // For now, showing sample data
+        }
+
+        // Provide Help function
+        window.provideHelp = async function() {
+            const amount = prompt('How much would you like to provide in help? (Minimum $100)');
+            if (amount && parseFloat(amount) >= 100) {
+                try {
+                    // Create help request in database
+                    await addDoc(collection(db, 'helpRequests'), {
+                        userId: currentUser.uid,
+                        type: 'provide',
+                        amount: parseFloat(amount),
+                        status: 'pending',
+                        createdAt: new Date().toISOString()
+                    });
+
+                    alert(`Great! You've requested to provide $${amount} in help. You'll be matched with someone who needs help within 24-48 hours. Your Mavro will grow by 30% monthly on this amount.`);
+                    loadDashboardData();
+                } catch (error) {
+                    alert('Error creating help request: ' + error.message);
+                }
+            } else if (amount) {
+                alert('Minimum help amount is $100');
+            }
+        };
+
+        // Get Help function
+        window.getHelp = async function() {
+            const amount = prompt('How much help do you need? (Based on your available Mavro balance)');
+            if (amount && parseFloat(amount) > 0) {
+                try {
+                    // Create get help request in database
+                    await addDoc(collection(db, 'helpRequests'), {
+                        userId: currentUser.uid,
+                        type: 'get',
+                        amount: parseFloat(amount),
+                        status: 'pending',
+                        createdAt: new Date().toISOString()
+                    });
+
+                    alert(`Your request for $${amount} has been submitted. You'll be matched with a helper within 24-48 hours. Please be ready to provide your payment details when matched.`);
+                    loadDashboardData();
+                } catch (error) {
+                    alert('Error creating help request: ' + error.message);
+                }
+            }
+        };
+
+        // Logout function
+        window.logout = function() {
+            signOut(auth).then(() => {
+                localStorage.removeItem('currentUser');
+                localStorage.removeItem('isAdmin');
+                window.location.href = 'index.html';
+            }).catch((error) => {
+                console.error('Error signing out:', error);
+            });
+        };
+    </script>
+</head>
+<body>
+    <div class="min-h-screen bg-gray-50">
+        <!-- Header -->
+        <header class="bg-white shadow-sm border-b">
+            <div class="px-6 py-4">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center space-x-4">
+                        <div class="w-10 h-10 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full flex items-center justify-center">
+                            <span class="text-white font-bold">K</span>
+                        </div>
+                        <h1 class="text-2xl font-bold text-gray-800">Koinonia Dashboard</h1>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <span class="text-gray-600">Welcome, <span id="userName" class="font-semibold"></span></span>
+                        <button onclick="logout()" class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-colors">
+                            Logout
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="flex">
+            <!-- Sidebar -->
+            <nav class="w-64 bg-white shadow-sm h-screen sticky top-0">
+                <div class="p-6">
+                    <ul class="space-y-2">
+                        <li>
+                            <a href="dashboard.html" class="w-full text-left px-4 py-3 rounded-lg bg-blue-50 text-blue-600 font-medium flex items-center">
+                                📊 Dashboard
+                            </a>
+                        </li>
+                        <li>
+                            <a href="my-page.html" class="w-full text-left px-4 py-3 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors flex items-center">
+                                👤 My Page
+                            </a>
+                        </li>
+                        <li>
+                            <a href="mavro.html" class="w-full text-left px-4 py-3 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors flex items-center">
+                                💰 Mavro
+                            </a>
+                        </li>
+                        <li>
+                            <a href="referrals.html" class="w-full text-left px-4 py-3 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors flex items-center">
+                                👥 Referrals
+                            </a>
+                        </li>
+                        <li>
+                            <a href="support.html" class="w-full text-left px-4 py-3 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors flex items-center">
+                                🎧 Support
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </nav>
+
+            <!-- Main Content -->
+            <main class="flex-1 p-6">
+                <!-- Primary Action Buttons -->
+                <div class="grid md:grid-cols-2 gap-6 mb-8">
+                    <button onclick="provideHelp()" class="bg-gradient-to-r from-green-500 to-green-600 text-white p-8 rounded-2xl hover:from-green-600 hover:to-green-700 transition-all transform hover:scale-105 shadow-lg">
+                        <div class="text-center">
+                            <div class="text-4xl mb-4">🤝</div>
+                            <h3 class="text-2xl font-bold mb-2">Provide Help</h3>
+                            <p class="text-green-100">Help other community members and grow your Mavro by 30% monthly</p>
+                        </div>
+                    </button>
+                    <button onclick="getHelp()" class="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-8 rounded-2xl hover:from-blue-600 hover:to-blue-700 transition-all transform hover:scale-105 shadow-lg">
+                        <div class="text-center">
+                            <div class="text-4xl mb-4">🙏</div>
+                            <h3 class="text-2xl font-bold mb-2">Get Help</h3>
+                            <p class="text-blue-100">Request assistance from the community when you need it</p>
+                        </div>
+                    </button>
+                </div>
+
+                <!-- Account Summary -->
+                <div class="bg-white rounded-2xl shadow-sm p-6 mb-8">
+                    <h3 class="text-xl font-bold text-gray-800 mb-6">Account Summary</h3>
+                    <div class="grid md:grid-cols-3 gap-6">
+                        <div class="bg-gradient-to-r from-yellow-400 to-orange-500 text-white p-6 rounded-xl">
+                            <h4 class="text-lg font-semibold mb-2">Total Mavro</h4>
+                            <p class="text-3xl font-bold" id="totalMavro">$0.00</p>
+                            <p class="text-yellow-100 text-sm mt-2">Available Balance</p>
+                        </div>
+                        <div class="bg-gradient-to-r from-green-400 to-green-500 text-white p-6 rounded-xl">
+                            <h4 class="text-lg font-semibold mb-2">Monthly Growth</h4>
+                            <p class="text-3xl font-bold">30%</p>
+                            <p class="text-green-100 text-sm mt-2">Guaranteed Return</p>
+                        </div>
+                        <div class="bg-gradient-to-r from-purple-400 to-purple-500 text-white p-6 rounded-xl">
+                            <h4 class="text-lg font-semibold mb-2">Status</h4>
+                            <p class="text-2xl font-bold" id="accountStatus">Active</p>
+                            <p class="text-purple-100 text-sm mt-2">Account Standing</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Transaction Queue -->
+                <div class="bg-white rounded-2xl shadow-sm p-6 mb-8">
+                    <h3 class="text-xl font-bold text-gray-800 mb-6">Transaction Queue</h3>
+                    <div id="transactionQueue" class="space-y-4">
+                        <div class="flex items-center justify-between p-4 bg-yellow-50 rounded-lg border-l-4 border-yellow-400">
+                            <div>
+                                <p class="font-semibold text-gray-800">Provide Help Order</p>
+                                <p class="text-gray-600">You have been matched to help User #12345</p>
+                                <p class="text-sm text-gray-500">Amount: $500.00 • Due: 2 days</p>
+                            </div>
+                            <button class="bg-yellow-500 text-white px-4 py-2 rounded-lg hover:bg-yellow-600 transition-colors">
+                                View Details
+                            </button>
+                        </div>
+                        <div class="flex items-center justify-between p-4 bg-green-50 rounded-lg border-l-4 border-green-400">
+                            <div>
+                                <p class="font-semibold text-gray-800">Get Help Request</p>
+                                <p class="text-gray-600">Your request is being processed</p>
+                                <p class="text-sm text-gray-500">Amount: $300.00 • Status: Pending</p>
+                            </div>
+                            <button class="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition-colors">
+                                Track Progress
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Activity -->
+                <div class="bg-white rounded-2xl shadow-sm p-6">
+                    <h3 class="text-xl font-bold text-gray-800 mb-6">Recent Activity</h3>
+                    <div id="recentActivity" class="space-y-4">
+                        <div class="flex items-center space-x-4 p-4 hover:bg-gray-50 rounded-lg transition-colors">
+                            <div class="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                                <span class="text-green-600 font-bold">+</span>
+                            </div>
+                            <div class="flex-1">
+                                <p class="font-semibold text-gray-800">Welcome Bonus</p>
+                                <p class="text-gray-600 text-sm">Initial bonus for joining Koinonia</p>
+                            </div>
+                            <div class="text-right">
+                                <p class="font-bold text-green-600">+$100.00</p>
+                                <p class="text-gray-500 text-sm">Today</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'974a5f57d4f494bb',t:'MTc1NjExNzM5MC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
