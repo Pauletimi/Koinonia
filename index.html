@@ -3,35 +3,185 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Dashboard - Koinonia</title>
-    <link rel="stylesheet" href="../css/style.css">
+    <title>Koinonia - P2P Financial Community</title>
+    <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body>
-    <div class="dashboard-layout">
-        <aside class="sidebar admin-sidebar">
-            <h1 class="sidebar-logo">Koinonia Admin</h1>
-            <nav class="sidebar-nav">
-                <a href="index.html" class="nav-link active">Dashboard</a>
-                <a href="users.html" class="nav-link">Manage Users</a>
-                <a href="transactions.html" class="nav-link">Manage Transactions</a>
-                <a href="settings.html" class="nav-link">Settings</a>
-                <a href="../index.html" class="nav-link logout">Logout</a>
-            </nav>
-        </aside>
-        <main class="dashboard-content">
-            <h2>Admin Overview</h2>
-            <div class="grid">
-                <div class="card"><h3>Total Users</h3><p id="total-users">0</p></div>
-                <div class="card"><h3>Pending Transactions</h3><p id="pending-transactions">0</p></div>
-                <div class="card"><h3>Completed Transactions</h3><p id="completed-transactions">0</p></div>
+    <div class="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900">
+        <!-- Header -->
+        <header class="bg-white/10 backdrop-blur-md border-b border-white/20">
+            <div class="container mx-auto px-6 py-4">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center space-x-2">
+                        <div class="w-10 h-10 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full flex items-center justify-center">
+                            <span class="text-white font-bold text-xl">K</span>
+                        </div>
+                        <span class="text-white text-2xl font-bold">Koinonia</span>
+                    </div>
+                    <nav class="hidden md:flex space-x-8">
+                        <a href="#how-it-works" onclick="scrollToSection('how-it-works')" class="text-white/80 hover:text-white transition-colors">How It Works</a>
+                        <a href="#testimonials" onclick="scrollToSection('testimonials')" class="text-white/80 hover:text-white transition-colors">Testimonials</a>
+                        <a href="login.html" class="text-white/80 hover:text-white transition-colors">Login</a>
+                        <a href="register.html" class="bg-gradient-to-r from-yellow-400 to-orange-500 text-white px-6 py-2 rounded-full hover:from-yellow-500 hover:to-orange-600 transition-all">Register</a>
+                    </nav>
+                </div>
             </div>
-        </main>
-    </div>
-    <!-- Firebase SDKs -->
-    <script type="module">
-        // Your Firebase config here. Add logic to fetch and display admin data.
-    </script>
+        </header>
 
-<script type="module" src="../js/admin.js"></script>
-</body>
+        <!-- Hero Section -->
+        <section class="container mx-auto px-6 py-20 text-center">
+            <h1 class="text-5xl md:text-7xl font-bold text-white mb-6">
+                Financial <span class="text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-500">Freedom</span> Together
+            </h1>
+            <p class="text-xl text-white/80 mb-8 max-w-3xl mx-auto">
+                Join our peer-to-peer financial community where members help each other achieve financial growth through mutual assistance and shared prosperity.
+            </p>
+            <a href="register.html" class="bg-gradient-to-r from-yellow-400 to-orange-500 text-white text-xl px-12 py-4 rounded-full hover:from-yellow-500 hover:to-orange-600 transition-all transform hover:scale-105 shadow-2xl inline-block">
+                Join Now - Start Your Journey
+            </a>
+        </section>
+
+        <!-- How It Works Section -->
+        <section id="how-it-works" class="bg-white/5 backdrop-blur-sm py-20">
+            <div class="container mx-auto px-6">
+                <h2 class="text-4xl font-bold text-white text-center mb-16">How It Works</h2>
+                <div class="grid md:grid-cols-3 gap-12">
+                    <div class="text-center">
+                        <div class="w-20 h-20 bg-gradient-to-r from-green-400 to-blue-500 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <span class="text-white text-2xl font-bold">1</span>
+                        </div>
+                        <h3 class="text-2xl font-bold text-white mb-4">Register & Join</h3>
+                        <p class="text-white/80">Create your account and become part of our financial community. No fees to join.</p>
+                    </div>
+                    <div class="text-center">
+                        <div class="w-20 h-20 bg-gradient-to-r from-purple-400 to-pink-500 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <span class="text-white text-2xl font-bold">2</span>
+                        </div>
+                        <h3 class="text-2xl font-bold text-white mb-4">Provide Help</h3>
+                        <p class="text-white/80">Help other community members by providing financial assistance. Your Mavro grows by 30% monthly.</p>
+                    </div>
+                    <div class="text-center">
+                        <div class="w-20 h-20 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <span class="text-white text-2xl font-bold">3</span>
+                        </div>
+                        <h3 class="text-2xl font-bold text-white mb-4">Get Help</h3>
+                        <p class="text-white/80">Request help from the community when you need it. Receive assistance from other members.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Ideology Section -->
+        <section class="py-20">
+            <div class="container mx-auto px-6">
+                <div class="max-w-4xl mx-auto text-center">
+                    <h2 class="text-4xl font-bold text-white mb-8">Our Ideology</h2>
+                    <p class="text-xl text-white/80 mb-8">
+                        We believe in the power of community and mutual assistance. Our platform is built on the principle that together, we can achieve financial freedom and prosperity for all members.
+                    </p>
+                    <p class="text-lg text-white/70">
+                        By helping others, you help yourself. By growing together, we create a sustainable ecosystem of financial support and growth that benefits everyone in our community.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Testimonials Section -->
+        <section id="testimonials" class="bg-white/5 backdrop-blur-sm py-20">
+            <div class="container mx-auto px-6">
+                <h2 class="text-4xl font-bold text-white text-center mb-16">What Our Members Say</h2>
+                <div class="grid md:grid-cols-3 gap-8">
+                    <div class="bg-white/10 backdrop-blur-md rounded-2xl p-8 border border-white/20">
+                        <div class="flex items-center mb-4">
+                            <div class="w-12 h-12 bg-gradient-to-r from-blue-400 to-purple-500 rounded-full flex items-center justify-center">
+                                <span class="text-white font-bold">JS</span>
+                            </div>
+                            <div class="ml-4">
+                                <h4 class="text-white font-bold">John Smith</h4>
+                                <p class="text-white/60 text-sm">Member since 2023</p>
+                            </div>
+                        </div>
+                        <p class="text-white/80">"This platform has transformed my financial situation. The community support is incredible, and the growth has been consistent."</p>
+                    </div>
+                    <div class="bg-white/10 backdrop-blur-md rounded-2xl p-8 border border-white/20">
+                        <div class="flex items-center mb-4">
+                            <div class="w-12 h-12 bg-gradient-to-r from-green-400 to-blue-500 rounded-full flex items-center justify-center">
+                                <span class="text-white font-bold">MJ</span>
+                            </div>
+                            <div class="ml-4">
+                                <h4 class="text-white font-bold">Maria Johnson</h4>
+                                <p class="text-white/60 text-sm">Member since 2023</p>
+                            </div>
+                        </div>
+                        <p class="text-white/80">"I've been able to help my family and grow my savings at the same time. The concept really works when everyone participates."</p>
+                    </div>
+                    <div class="bg-white/10 backdrop-blur-md rounded-2xl p-8 border border-white/20">
+                        <div class="flex items-center mb-4">
+                            <div class="w-12 h-12 bg-gradient-to-r from-purple-400 to-pink-500 rounded-full flex items-center justify-center">
+                                <span class="text-white font-bold">RB</span>
+                            </div>
+                            <div class="ml-4">
+                                <h4 class="text-white font-bold">Robert Brown</h4>
+                                <p class="text-white/60 text-sm">Member since 2023</p>
+                            </div>
+                        </div>
+                        <p class="text-white/80">"The transparency and community spirit here is unlike anything I've experienced. Highly recommend joining."</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="bg-black/20 backdrop-blur-md border-t border-white/20 py-12">
+            <div class="container mx-auto px-6">
+                <div class="grid md:grid-cols-4 gap-8">
+                    <div>
+                        <div class="flex items-center space-x-2 mb-4">
+                            <div class="w-8 h-8 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full flex items-center justify-center">
+                                <span class="text-white font-bold">K</span>
+                            </div>
+                            <span class="text-white text-xl font-bold">Koinonia</span>
+                        </div>
+                        <p class="text-white/60">Building financial freedom through community support and mutual assistance.</p>
+                    </div>
+                    <div>
+                        <h4 class="text-white font-bold mb-4">Quick Links</h4>
+                        <ul class="space-y-2">
+                            <li><a href="#how-it-works" onclick="scrollToSection('how-it-works')" class="text-white/60 hover:text-white transition-colors">How It Works</a></li>
+                            <li><a href="#testimonials" onclick="scrollToSection('testimonials')" class="text-white/60 hover:text-white transition-colors">Testimonials</a></li>
+                            <li><a href="register.html" class="text-white/60 hover:text-white transition-colors">Join Now</a></li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h4 class="text-white font-bold mb-4">Legal</h4>
+                        <ul class="space-y-2">
+                            <li><a href="#" class="text-white/60 hover:text-white transition-colors">Terms of Service</a></li>
+                            <li><a href="#" class="text-white/60 hover:text-white transition-colors">Privacy Policy</a></li>
+                            <li><a href="#" class="text-white/60 hover:text-white transition-colors">FAQ</a></li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h4 class="text-white font-bold mb-4">Contact</h4>
+                        <ul class="space-y-2">
+                            <li class="text-white/60">support@koinonia.com</li>
+                            <li class="text-white/60">+1 (555) 123-4567</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="border-t border-white/20 mt-8 pt-8 text-center">
+                    <p class="text-white/60">&copy; 2024 Koinonia. All rights reserved.</p>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        function scrollToSection(sectionId) {
+            const element = document.getElementById(sectionId);
+            if (element) {
+                element.scrollIntoView({ behavior: 'smooth' });
+            }
+        }
+    </script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'974a5879658d94bb',t:'MTc1NjExNzEwOC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
