@@ -41,29 +41,32 @@
                 const userCredential = await signInWithEmailAndPassword(auth, email, password);
                 const user = userCredential.user;
 
-                // Check if admin
-                if (email === 'Pauletimi@gmail.com' && password === 'Odudele118') {
-                    // Store admin status in localStorage
-                    localStorage.setItem('isAdmin', 'true');
-                    localStorage.setItem('currentUser', JSON.stringify({
-                        uid: user.uid,
-                        email: email,
-                        name: 'Paul Etimi',
-                        isAdmin: true
-                    }));
-                    window.location.href = 'admin.html';
-                } else {
-                    // Get user data from Firestore
-                    const userDoc = await getDoc(doc(db, 'users', user.uid));
-                    if (userDoc.exists()) {
-                        const userData = { uid: user.uid, ...userDoc.data() };
-                        localStorage.setItem('currentUser', JSON.stringify(userData));
+                // --- CORRECTED LOGIC START ---
+                // This logic securely checks the user's role from the database after a successful login.
+
+                const userDoc = await getDoc(doc(db, 'users', user.uid));
+                
+                if (userDoc.exists()) {
+                    const userData = { uid: user.uid, ...userDoc.data() };
+                    localStorage.setItem('currentUser', JSON.stringify(userData));
+
+                    // Check for the 'isAdmin' flag from the user's database profile
+                    if (userData.isAdmin === true) {
+                        // If user is an admin, set admin flag and redirect to admin panel
+                        localStorage.setItem('isAdmin', 'true');
+                        window.location.href = 'admin.html';
+                    } else {
+                        // If user is not an admin, set flag to false and redirect to dashboard
                         localStorage.setItem('isAdmin', 'false');
                         window.location.href = 'dashboard.html';
-                    } else {
-                        alert('User profile not found. Please contact support.');
                     }
+                } else {
+                    // This case handles if a user exists in Auth but not in Firestore database
+                    alert('User profile not found. Please contact support.');
+                    signOut(auth); // Log out the user to prevent being stuck
                 }
+                // --- CORRECTED LOGIC END ---
+
             } catch (error) {
                 let errorMessage = 'Login failed: ';
                 switch (error.code) {
