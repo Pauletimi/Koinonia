@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Support - Koinonia</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+        // Import Firebase modules
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getAuth, signOut } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+        import { getFirestore, doc, getDoc, collection, addDoc, query, where, getDocs, orderBy, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyC9ikNYt8QnD6FHm1MOq11HB0kTP_X8qNQ",
+            authDomain: "wealth-club-65dab.firebaseapp.com",
+            projectId: "wealth-club-65dab",
+            storageBucket: "wealth-club-65dab.firebasestorage.app",
+            messagingSenderId: "906138407714",
+            appId: "1:906138407714:web:78e002acd44d2af326cb7b",
+            measurementId: "G-8H8CZ65956"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        let currentUser = null;
+        let chatMessages = [];
+
+        // Check authentication on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            const userData = localStorage.getItem('currentUser');
+            if (!userData) {
+                window.location.href = 'login.html';
+                return;
+            }
+
+            currentUser = JSON.parse(userData);
+            document.getElementById('userName').textContent = currentUser.name;
+            loadSupportTickets();
+            initializeChat();
+        });
+
+        // Initialize chat
+        function initializeChat() {
+            const chatContainer = document.getElementById('chatMessages');
+            
+            // Listen for new messages
+            const q = query(
+                collection(db, 'supportChats'),
+                where('userId', '==', currentUser.uid),
+                orderBy('timestamp', 'asc')
+            );
+
+            onSnapshot(q, (snapshot) => {
+                chatMessages = [];
+                snapshot.forEach((doc) => {
+                    chatMessages.push({ id: doc.id, ...doc.data() });
+                });
+                displayChatMessages();
+            }, (error) => {
+                console.error('Error listening to chat messages:', error);
+                // Fallback without orderBy
+                const fallbackQ = query(
+                    collection(db, 'supportChats'),
+                    where('userId', '==', currentUser.uid)
+                );
+                
+                onSnapshot(fallbackQ, (snapshot) => {
+                    chatMessages = [];
+                    snapshot.forEach((doc) => {
+                        chatMessages.push({ id: doc.id, ...doc.data() });
+                    });
+                    chatMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+                    displayChatMessages();
+                });
+            });
+        }
+
+        // Display chat messages
+        function displayChatMessages() {
+            const container = document.getElementById('chatMessages');
+            container.innerHTML = '';
+
+            if (chatMessages.length === 0) {
+                container.innerHTML = '<p class="text-gray-500 text-center py-4">No messages yet. Start a conversation!</p>';
+                return;
+            }
+
+            chatMessages.forEach(message => {
+                const messageElement = createMessageElement(message);
+                container.appendChild(messageElement);
+            });
+
+            // Scroll to bottom
+            container.scrollTop = container.scrollHeight;
+        }
+
+        // Create message element
+        function createMessageElement(message) {
+            const div = document.createElement('div');
+            const isUser = message.sender === 'user';
+            
+            div.className = `flex ${isUser ? 'justify-end' : 'justify-start'} mb-4`;
+            
+            div.innerHTML = `
+                <div class="max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${isUser ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-800'}">
+                    <p class="text-sm">${message.message}</p>
+                    <p class="text-xs ${isUser ? 'text-blue-100' : 'text-gray-500'} mt-1">
+                        ${new Date(message.timestamp).toLocaleTimeString()}
+                    </p>
+                </div>
+            `;
+            
+            return div;
+        }
+
+        // Send chat message
+        window.sendChatMessage = async function() {
+            const messageInput = document.getElementById('chatInput');
+            const message = messageInput.value.trim();
+            
+            if (!message) return;
+
+            try {
+                await addDoc(collection(db, 'supportChats'), {
+                    userId: currentUser.uid,
+                    userName: currentUser.name,
+                    message: message,
+                    sender: 'user',
+                    timestamp: new Date().toISOString(),
+                    status: 'sent'
+                });
+
+                messageInput.value = '';
+
+                // Simulate support response after 2 seconds
+                setTimeout(async () => {
+                    const responses = [
+                        "Thank you for contacting us! A support agent will be with you shortly.",
+                        "I understand your concern. Let me help you with that.",
+                        "Thanks for reaching out! I'm here to assist you.",
+                        "I've received your message and will get back to you soon.",
+                        "Hello! How can I help you today?"
+                    ];
+                    
+                    const randomResponse = responses[Math.floor(Math.random() * responses.length)];
+                    
+                    await addDoc(collection(db, 'supportChats'), {
+                        userId: currentUser.uid,
+                        userName: 'Support Agent',
+                        message: randomResponse,
+                        sender: 'support',
+                        timestamp: new Date().toISOString(),
+                        status: 'sent'
+                    });
+                }, 2000);
+
+            } catch (error) {
+                alert('Error sending message: ' + error.message);
+            }
+        };
+
+        // Handle Enter key in chat
+        document.addEventListener('DOMContentLoaded', function() {
+            const chatInput = document.getElementById('chatInput');
+            chatInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    sendChatMessage();
+                }
+            });
+        });
+
+        // Submit support ticket
+        window.submitTicket = async function() {
+            const subject = document.getElementById('ticketSubject').value;
+            const category = document.getElementById('ticketCategory').value;
+            const priority = document.getElementById('ticketPriority').value;
+            const description = document.getElementById('ticketDescription').value;
+
+            if (!subject || !category || !priority || !description) {
+                alert('Please fill in all fields');
+                return;
+            }
+
+            try {
+                await addDoc(collection(db, 'supportTickets'), {
+                    userId: currentUser.uid,
+                    userName: currentUser.name,
+                    userEmail: currentUser.email,
+                    subject: subject,
+                    category: category,
+                    priority: priority,
+                    description: description,
+                    status: 'open',
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                });
+
+                alert('Support ticket submitted successfully! We will get back to you soon.');
+                document.getElementById('ticketForm').reset();
+                loadSupportTickets();
+            } catch (error) {
+                alert('Error submitting ticket: ' + error.message);
+            }
+        };
+
+        // Load support tickets
+        async function loadSupportTickets() {
+            try {
+                const q = query(
+                    collection(db, 'supportTickets'),
+                    where('userId', '==', currentUser.uid)
+                );
+                const querySnapshot = await getDocs(q);
+                
+                const container = document.getElementById('ticketsList');
+                container.innerHTML = '';
+
+                if (querySnapshot.empty) {
+                    container.innerHTML = '<p class="text-gray-500 text-center py-4">No support tickets yet.</p>';
+                    return;
+                }
+
+                querySnapshot.forEach((doc) => {
+                    const ticket = doc.data();
+                    const ticketElement = createTicketElement(doc.id, ticket);
+                    container.appendChild(ticketElement);
+                });
+            } catch (error) {
+                console.error('Error loading support tickets:', error);
+            }
+        }
+
+        // Create ticket element
+        function createTicketElement(ticketId, ticket) {
+            const div = document.createElement('div');
+            div.className = 'border border-gray-200 rounded-lg p-4';
+            
+            const statusColors = {
+                'open': 'yellow',
+                'in-progress': 'blue',
+                'resolved': 'green',
+                'closed': 'gray'
+            };
+            
+            const priorityColors = {
+                'low': 'green',
+                'medium': 'yellow',
+                'high': 'red'
+            };
+            
+            const statusColor = statusColors[ticket.status] || 'gray';
+            const priorityColor = priorityColors[ticket.priority] || 'gray';
+            
+            div.innerHTML = `
+                <div class="flex justify-between items-start mb-3">
+                    <h4 class="font-semibold text-gray-800">${ticket.subject}</h4>
+                    <div class="flex space-x-2">
+                        <span class="px-2 py-1 text-xs rounded-full bg-${statusColor}-100 text-${statusColor}-800">
+                            ${ticket.status.charAt(0).toUpperCase() + ticket.status.slice(1)}
+                        </span>
+                        <span class="px-2 py-1 text-xs rounded-full bg-${priorityColor}-100 text-${priorityColor}-800">
+                            ${ticket.priority.charAt(0).toUpperCase() + ticket.priority.slice(1)}
+                        </span>
+                    </div>
+                </div>
+                <p class="text-gray-600 text-sm mb-2">${ticket.description}</p>
+                <div class="flex justify-between items-center text-xs text-gray-500">
+                    <span>Category: ${ticket.category}</span>
+                    <span>Created: ${new Date(ticket.createdAt).toLocaleDateString()}</span>
+                </div>
+            `;
+            
+            return div;
+        }
+
+        // Toggle FAQ
+        window.toggleFAQ = function(index) {
+            const answer = document.getElementById(`faq-answer-${index}`);
+            const icon = document.getElementById(`faq-icon-${index}`);
+            
+            if (answer.classList.contains('hidden')) {
+                answer.classList.remove('hidden');
+                icon.textContent = '−';
+            } else {
+                answer.classList.add('hidden');
+                icon.textContent = '+';
+            }
+        };
+
+        // Search FAQ
+        window.searchFAQ = function() {
+            const searchTerm = document.getElementById('faqSearch').value.toLowerCase();
+            const faqItems = document.querySelectorAll('.faq-item');
+            
+            faqItems.forEach(item => {
+                const question = item.querySelector('.faq-question').textContent.toLowerCase();
+                const answer = item.querySelector('.faq-answer').textContent.toLowerCase();
+                
+                if (question.includes(searchTerm) || answer.includes(searchTerm)) {
+                    item.style.display = 'block';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        };
+
+        // Logout function
+        window.logout = function() {
+            signOut(auth).then(() => {
+                localStorage.removeItem('currentUser');
+                localStorage.removeItem('isAdmin');
+                window.location.href = 'index.html';
+            }).catch((error) => {
+                console.error('Error signing out:', error);
+            });
+        };
+    </script>
+</head>
+<body>
+    <div class="min-h-screen bg-gray-50">
+        <!-- Header -->
+        <header class="bg-white shadow-sm border-b">
+            <div class="px-6 py-4">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center space-x-4">
+                        <div class="w-10 h-10 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full flex items-center justify-center">
+                            <span class="text-white font-bold">K</span>
+                        </div>
+                        <h1 class="text-2xl font-bold text-gray-800">Support Center</h1>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <span class="text-gray-600">Welcome, <span id="userName" class="font-semibold"></span></span>
+                        <button onclick="logout()" class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-colors">
+                            Logout
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="flex">
+            <!-- Sidebar -->
+            <nav class="w-64 bg-white shadow-sm h-screen sticky top-0">
+                <div class="p-6">
+                    <ul class="space-y-2">
+                        <li>
+                            <a href="dashboard.html" class="w-full text-left px-4 py-3 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors flex items-center">
+                                📊 Dashboard
+                            </a>
+                        </li>
+                        <li>
+                            <a href="my-page.html" class="w-full text-left px-4 py-3 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors flex items-center">
+                                👤 My Page
+                            </a>
+                        </li>
+                        <li>
+                            <a href="mavro.html" class="w-full text-left px-4 py-3 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors flex items-center">
+                                💰 Mavro
+                            </a>
+                        </li>
+                        <li>
+                            <a href="referrals.html" class="w-full text-left px-4 py-3 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors flex items-center">
+                                👥 Referrals
+                            </a>
+                        </li>
+                        <li>
+                            <a href="support.html" class="w-full text-left px-4 py-3 rounded-lg bg-blue-50 text-blue-600 font-medium flex items-center">
+                                🎧 Support
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </nav>
+
+            <!-- Main Content -->
+            <main class="flex-1 p-6">
+                <!-- Support Options -->
+                <div class="grid md:grid-cols-3 gap-6 mb-8">
+                    <div class="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-6 rounded-2xl">
+                        <h3 class="text-lg font-semibold mb-2">Live Chat</h3>
+                        <p class="text-blue-100 text-sm mb-4">Get instant help from our support team</p>
+                        <button onclick="document.getElementById('liveChat').scrollIntoView()" class="bg-white text-blue-600 px-4 py-2 rounded-lg hover:bg-blue-50 transition-colors">
+                            Start Chat
+                        </button>
+                    </div>
+                    <div class="bg-gradient-to-r from-green-500 to-green-600 text-white p-6 rounded-2xl">
+                        <h3 class="text-lg font-semibold mb-2">Submit Ticket</h3>
+                        <p class="text-green-100 text-sm mb-4">Create a support ticket for complex issues</p>
+                        <button onclick="document.getElementById('submitTicket').scrollIntoView()" class="bg-white text-green-600 px-4 py-2 rounded-lg hover:bg-green-50 transition-colors">
+                            Create Ticket
+                        </button>
+                    </div>
+                    <div class="bg-gradient-to-r from-purple-500 to-purple-600 text-white p-6 rounded-2xl">
+                        <h3 class="text-lg font-semibold mb-2">FAQ</h3>
+                        <p class="text-purple-100 text-sm mb-4">Find answers to common questions</p>
+                        <button onclick="document.getElementById('faqSection').scrollIntoView()" class="bg-white text-purple-600 px-4 py-2 rounded-lg hover:bg-purple-50 transition-colors">
+                            Browse FAQ
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Contact Information -->
+                <div class="bg-white rounded-2xl shadow-sm p-6 mb-8">
+                    <h3 class="text-xl font-bold text-gray-800 mb-6">Contact Information</h3>
+                    <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <div class="text-center">
+                            <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                                <span class="text-blue-600 text-xl">📧</span>
+                            </div>
+                            <h4 class="font-semibold text-gray-800 mb-1">Email</h4>
+                            <p class="text-gray-600 text-sm">support@koinonia.com</p>
+                        </div>
+                        <div class="text-center">
+                            <div class="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                                <span class="text-green-600 text-xl">📞</span>
+                            </div>
+                            <h4 class="font-semibold text-gray-800 mb-1">Phone</h4>
+                            <p class="text-gray-600 text-sm">+1 (555) 123-4567</p>
+                        </div>
+                        <div class="text-center">
+                            <div class="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                                <span class="text-purple-600 text-xl">💬</span>
+                            </div>
+                            <h4 class="font-semibold text-gray-800 mb-1">WhatsApp</h4>
+                            <p class="text-gray-600 text-sm">+1 (555) 987-6543</p>
+                        </div>
+                        <div class="text-center">
+                            <div class="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                                <span class="text-yellow-600 text-xl">🕒</span>
+                            </div>
+                            <h4 class="font-semibold text-gray-800 mb-1">Hours</h4>
+                            <p class="text-gray-600 text-sm">24/7 Support</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Live Chat -->
+                <div id="liveChat" class="bg-white rounded-2xl shadow-sm p-6 mb-8">
+                    <h3 class="text-xl font-bold text-gray-800 mb-6">Live Chat</h3>
+                    <div class="border border-gray-200 rounded-lg">
+                        <div id="chatMessages" class="h-64 overflow-y-auto p-4 bg-gray-50">
+                            <!-- Chat messages will appear here -->
+                        </div>
+                        <div class="border-t border-gray-200 p-4">
+                            <div class="flex space-x-4">
+                                <input type="text" id="chatInput" placeholder="Type your message..." class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                <button onclick="sendChatMessage()" class="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 transition-colors">
+                                    Send
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Submit Ticket -->
+                <div id="submitTicket" class="bg-white rounded-2xl shadow-sm p-6 mb-8">
+                    <h3 class="text-xl font-bold text-gray-800 mb-6">Submit Support Ticket</h3>
+                    <form id="ticketForm" class="space-y-6">
+                        <div class="grid md:grid-cols-2 gap-6">
+                            <div>
+                                <label class="block text-gray-700 text-sm font-medium mb-2">Subject</label>
+                                <input type="text" id="ticketSubject" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="Brief description of your issue">
+                            </div>
+                            <div>
+                                <label class="block text-gray-700 text-sm font-medium mb-2">Category</label>
+                                <select id="ticketCategory" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                    <option value="">Select category</option>
+                                    <option value="account">Account Issues</option>
+                                    <option value="payment">Payment Problems</option>
+                                    <option value="technical">Technical Support</option>
+                                    <option value="general">General Inquiry</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 text-sm font-medium mb-2">Priority</label>
+                            <select id="ticketPriority" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                <option value="">Select priority</option>
+                                <option value="low">Low</option>
+                                <option value="medium">Medium</option>
+                                <option value="high">High</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 text-sm font-medium mb-2">Description</label>
+                            <textarea id="ticketDescription" rows="4" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="Please provide detailed information about your issue"></textarea>
+                        </div>
+                        <button type="button" onclick="submitTicket()" class="bg-green-500 text-white px-6 py-3 rounded-lg hover:bg-green-600 transition-colors">
+                            Submit Ticket
+                        </button>
+                    </form>
+                </div>
+
+                <!-- My Tickets -->
+                <div class="bg-white rounded-2xl shadow-sm p-6 mb-8">
+                    <h3 class="text-xl font-bold text-gray-800 mb-6">My Support Tickets</h3>
+                    <div id="ticketsList" class="space-y-4">
+                        <!-- Support tickets will be loaded here -->
+                    </div>
+                </div>
+
+                <!-- FAQ Section -->
+                <div id="faqSection" class="bg-white rounded-2xl shadow-sm p-6">
+                    <h3 class="text-xl font-bold text-gray-800 mb-6">Frequently Asked Questions</h3>
+                    
+                    <!-- FAQ Search -->
+                    <div class="mb-6">
+                        <input type="text" id="faqSearch" onkeyup="searchFAQ()" placeholder="Search FAQ..." class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    </div>
+
+                    <!-- FAQ Items -->
+                    <div class="space-y-4">
+                        <div class="faq-item border border-gray-200 rounded-lg">
+                            <button onclick="toggleFAQ(1)" class="w-full text-left p-4 flex justify-between items-center hover:bg-gray-50">
+                                <span class="faq-question font-semibold text-gray-800">How does the 30% monthly return work?</span>
+                                <span id="faq-icon-1" class="text-gray-500">+</span>
+                            </button>
+                            <div id="faq-answer-1" class="faq-answer hidden px-4 pb-4 text-gray-600">
+                                Our platform guarantees a 30% monthly return on your Mavro balance through our proven investment strategies and community support system. Returns are calculated and added to your account monthly.
+                            </div>
+                        </div>
+
+                        <div class="faq-item border border-gray-200 rounded-lg">
+                            <button onclick="toggleFAQ(2)" class="w-full text-left p-4 flex justify-between items-center hover:bg-gray-50">
+                                <span class="faq-question font-semibold text-gray-800">How do I withdraw my earnings?</span>
+                                <span id="faq-icon-2" class="text-gray-500">+</span>
+                            </button>
+                            <div id="faq-answer-2" class="faq-answer hidden px-4 pb-4 text-gray-600">
+                                You can withdraw your earnings through your registered bank account or cryptocurrency wallet. Withdrawals are processed within 24-48 hours after approval.
+                            </div>
+                        </div>
+
+                        <div class="faq-item border border-gray-200 rounded-lg">
+                            <button onclick="toggleFAQ(3)" class="w-full text-left p-4 flex justify-between items-center hover:bg-gray-50">
+                                <span class="faq-question font-semibold text-gray-800">What is the referral commission structure?</span>
+                                <span id="faq-icon-3" class="text-gray-500">+</span>
+                            </button>
+                            <div id="faq-answer-3" class="faq-answer hidden px-4 pb-4 text-gray-600">
+                                You earn 10% commission on every investment made by users you directly refer. Additionally, you receive a $50 bonus for every 5 active referrals you bring to the platform.
+                            </div>
+                        </div>
+
+                        <div class="faq-item border border-gray-200 rounded-lg">
+                            <button onclick="toggleFAQ(4)" class="w-full text-left p-4 flex justify-between items-center hover:bg-gray-50">
+                                <span class="faq-question font-semibold text-gray-800">Is my investment secure?</span>
+                                <span id="faq-icon-4" class="text-gray-500">+</span>
+                            </button>
+                            <div id="faq-answer-4" class="faq-answer hidden px-4 pb-4 text-gray-600">
+                                Yes, we use advanced security measures including encryption, secure servers, and regular security audits to protect your investments and personal information.
+                            </div>
+                        </div>
+
+                        <div class="faq-item border border-gray-200 rounded-lg">
+                            <button onclick="toggleFAQ(5)" class="w-full text-left p-4 flex justify-between items-center hover:bg-gray-50">
+                                <span class="faq-question font-semibold text-gray-800">What payment methods do you accept?</span>
+                                <span id="faq-icon-5" class="text-gray-500">+</span>
+                            </button>
+                            <div id="faq-answer-5" class="faq-answer hidden px-4 pb-4 text-gray-600">
+                                We accept bank transfers, major cryptocurrencies (Bitcoin, Ethereum, USDT), and various digital payment methods. Check your dashboard for available options in your region.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'974a682af52c94bb',t:'MTc1NjExNzc1MS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
