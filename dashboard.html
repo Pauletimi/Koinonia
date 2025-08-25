@@ -52,6 +52,7 @@
                 
                 if (userDoc.exists()) {
                     const userData = userDoc.data();
+                    // Update the local currentUser object with fresh data
                     currentUser = { uid: currentUser.uid, ...userData };
                     localStorage.setItem('currentUser', JSON.stringify(currentUser));
                     
@@ -68,11 +69,10 @@
 
         // Load recent activity from mavroTransactions
         async function loadRecentActivity() {
-            // This function remains unchanged
             const q = query(collection(db, 'mavroTransactions'), where('userId', '==', currentUser.uid));
             const querySnapshot = await getDocs(q);
             const activityContainer = document.getElementById('recentActivity');
-            activityContainer.innerHTML = ''; 
+            activityContainer.innerHTML = ''; // Clear previous entries
 
             if (querySnapshot.empty) {
                 activityContainer.innerHTML = '<p class="text-gray-500 text-center py-4">No recent activity.</p>';
@@ -88,48 +88,66 @@
 
         // Create a visual element for an activity item
         function createActivityItem(transaction) {
-            // This function remains unchanged
             const div = document.createElement('div');
             div.className = 'flex items-center space-x-4 p-4 hover:bg-gray-50 rounded-lg transition-colors';
             
             const isCredit = transaction.amount > 0;
-            const typeDetails = { bonus: { color: 'green', icon: '🎁' }, provide: { color: 'blue', icon: '🤝' }, get: { color: 'red', icon: '🙏' }, growth: { color: 'purple', icon: '📈' } };
+            const typeDetails = {
+                bonus: { color: 'green', icon: '🎁' },
+                provide: { color: 'blue', icon: '🤝' },
+                get: { color: 'red', icon: '🙏' },
+                growth: { color: 'purple', icon: '📈' }
+            };
             const details = typeDetails[transaction.type] || { color: 'gray', icon: '💰' };
 
             div.innerHTML = `
-                <div class="w-10 h-10 bg-${details.color}-100 rounded-full flex items-center justify-center"><span class="text-xl">${details.icon}</span></div>
-                <div class="flex-1"><p class="font-semibold text-gray-800">${transaction.description}</p><p class="text-gray-600 text-sm">${transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1)}</p></div>
-                <div class="text-right"><p class="font-bold text-${isCredit ? 'green' : 'red'}-600">${isCredit ? '+' : '-'}$${Math.abs(transaction.amount).toFixed(2)}</p><p class="text-gray-500 text-sm">${new Date(transaction.date).toLocaleDateString()}</p></div>
+                <div class="w-10 h-10 bg-${details.color}-100 rounded-full flex items-center justify-center">
+                    <span class="text-xl">${details.icon}</span>
+                </div>
+                <div class="flex-1">
+                    <p class="font-semibold text-gray-800">${transaction.description}</p>
+                    <p class="text-gray-600 text-sm">${transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1)}</p>
+                </div>
+                <div class="text-right">
+                    <p class="font-bold text-${isCredit ? 'green' : 'red'}-600">${isCredit ? '+' : '-'}$${Math.abs(transaction.amount).toFixed(2)}</p>
+                    <p class="text-gray-500 text-sm">${new Date(transaction.date).toLocaleDateString()}</p>
+                </div>
             `;
             return div;
         }
 
-        // Load all user's active requests AND matches
+        // --- UPDATED: Load all user's active requests AND matches ---
         async function loadTransactionQueue() {
-            // This function remains unchanged
             const queueContainer = document.getElementById('transactionQueue');
             queueContainer.innerHTML = ''; 
 
+            // 1. Get user's 'helpRequests' that are still pending
             const requestsQuery = query(collection(db, 'helpRequests'), where('userId', '==', currentUser.uid), where('status', '==', 'pending'));
             const requestsSnapshot = await getDocs(requestsQuery);
-            requestsSnapshot.forEach(doc => queueContainer.appendChild(createQueueItem(doc.data())));
+            requestsSnapshot.forEach(doc => {
+                queueContainer.appendChild(createQueueItem(doc.data()));
+            });
 
+            // 2. Get user's 'matches' where they are an active participant
             const matchesProviderQuery = query(collection(db, 'matches'), where('providerId', '==', currentUser.uid), where('status', 'in', ['pending_payment', 'payment_sent']));
             const providerSnapshot = await getDocs(matchesProviderQuery);
-            providerSnapshot.forEach(doc => queueContainer.appendChild(createMatchItem({ id: doc.id, ...doc.data() })));
+            providerSnapshot.forEach(doc => {
+                queueContainer.appendChild(createMatchItem({ id: doc.id, ...doc.data() }));
+            });
 
             const matchesGetterQuery = query(collection(db, 'matches'), where('getterId', '==', currentUser.uid), where('status', 'in', ['pending_payment', 'payment_sent']));
             const getterSnapshot = await getDocs(matchesGetterQuery);
-            getterSnapshot.forEach(doc => queueContainer.appendChild(createMatchItem({ id: doc.id, ...doc.data() })));
+            getterSnapshot.forEach(doc => {
+                queueContainer.appendChild(createMatchItem({ id: doc.id, ...doc.data() }));
+            });
 
             if (queueContainer.innerHTML === '') {
                 queueContainer.innerHTML = '<p class="text-gray-500 text-center py-4">No active orders in your queue.</p>';
             }
         }
 
-        // Create a visual element for a PENDING request
+        // --- UPDATED: Create a visual element for a PENDING request ---
         function createQueueItem(request) {
-            // This function remains unchanged
             const div = document.createElement('div');
             const isProvide = request.type === 'provide';
             const color = isProvide ? 'yellow' : 'green';
@@ -138,8 +156,14 @@
 
             div.className = `flex items-center justify-between p-4 bg-${color}-50 rounded-lg border-l-4 border-${color}-400`;
             div.innerHTML = `
-                <div><p class="font-semibold text-gray-800">${title}</p><p class="text-gray-600">${description}</p><p class="text-sm text-gray-500">Amount: $${request.amount.toFixed(2)}</p></div>
-                <button class="bg-gray-500 text-white px-4 py-2 rounded-lg cursor-not-allowed">Pending Admin</button>
+                <div>
+                    <p class="font-semibold text-gray-800">${title}</p>
+                    <p class="text-gray-600">${description}</p>
+                    <p class="text-sm text-gray-500">Amount: $${request.amount.toFixed(2)}</p>
+                </div>
+                <button class="bg-gray-500 text-white px-4 py-2 rounded-lg cursor-not-allowed">
+                    Pending Admin
+                </button>
             `;
             return div;
         }
@@ -167,7 +191,7 @@
             `;
             return div;
         }
-
+        
         // --- NEW: Function to show match details in a modal ---
         window.viewMatchDetails = async function(matchId) {
             const matchDoc = await getDoc(doc(db, 'matches', matchId));
@@ -187,10 +211,14 @@
                 const bankAccountsQuery = query(collection(db, 'bankAccounts'), where('userId', '==', match.getterId));
                 const bankAccountsSnapshot = await getDocs(bankAccountsQuery);
                 let paymentDetailsHTML = '<h5>Bank Accounts:</h5>';
-                bankAccountsSnapshot.forEach(doc => {
-                    const acc = doc.data();
-                    paymentDetailsHTML += `<div class="border p-2 my-2 rounded"><strong>Bank:</strong> ${acc.bankName}<br><strong>Account Number:</strong> ${acc.accountNumber}<br><strong>Type:</strong> ${acc.accountType}</div>`;
-                });
+                if (bankAccountsSnapshot.empty) {
+                    paymentDetailsHTML += '<p>No bank accounts found for this user.</p>';
+                } else {
+                    bankAccountsSnapshot.forEach(doc => {
+                        const acc = doc.data();
+                        paymentDetailsHTML += `<div class="border p-2 my-2 rounded"><strong>Bank:</strong> ${acc.bankName}<br><strong>Account Number:</strong> ${acc.accountNumber}<br><strong>Type:</strong> ${acc.accountType}</div>`;
+                    });
+                }
                 
                 modalContent.innerHTML = `
                     <h3 class="text-lg font-bold mb-4">Payment Details for ${match.getterName}</h3>
@@ -204,10 +232,12 @@
             } else { // Is the getter
                 modalContent.innerHTML = `
                     <h3 class="text-lg font-bold mb-4">Confirm Fund Reception</h3>
-                    <p class="mb-4">You are matched to receive <strong>$${match.amount.toFixed(2)}</strong> from ${match.providerName}. Please click the button below ONLY after you have received the funds in your account.</p>
+                    <p class="mb-4">You are matched to receive <strong>$${match.amount.toFixed(2)}</strong> from ${match.providerName}.</p>
+                    <p class="text-sm text-gray-600 mb-4">Status: ${match.status.replace('_', ' ')}.</p>
+                    <p class="mb-4">Please click the button below ONLY after you have received the funds in your account.</p>
                     <div class="mt-4 flex justify-end gap-4">
                         <button onclick="closeModal()" class="bg-gray-300 px-4 py-2 rounded">Close</button>
-                        <button onclick="confirmReception('${match.id}')" class="bg-green-600 text-white px-4 py-2 rounded">I Have Received The Funds</button>
+                        <button id="confirmReceptionBtn" onclick="confirmReception('${match.id}')" class="bg-green-600 text-white px-4 py-2 rounded" ${match.status !== 'payment_sent' ? 'disabled' : ''}>I Have Received The Funds</button>
                     </div>
                 `;
             }
@@ -245,7 +275,7 @@
                 amount: match.amount,
                 status: 'completed',
                 date: new Date().toISOString(),
-                growthReleaseDate: new Date().toISOString() // Matures immediately
+                growthReleaseDate: new Date(new Date().setDate(new Date().getDate() + 30)).toISOString() // Matures in 30 days
             });
             
             // 3. Create the 'growth' transaction for the provider
@@ -274,33 +304,45 @@
             document.getElementById('matchModal').classList.add('hidden');
         }
 
-
-        // Provide Help function
+        // --- UPDATED: Provide Help function is simplified ---
         window.provideHelp = async function() {
-            // This function remains unchanged
             const amountInput = prompt('How much would you like to provide? (Minimum $100)');
             if (!amountInput) return;
             const amount = parseFloat(amountInput);
-            if (isNaN(amount) || amount < 100) { alert('Invalid amount. Minimum is $100.'); return; }
+            if (isNaN(amount) || amount < 100) {
+                alert('Invalid amount. Minimum is $100.');
+                return;
+            }
             try {
-                await addDoc(collection(db, 'helpRequests'), { userId: currentUser.uid, userName: currentUser.name, type: 'provide', amount: amount, status: 'pending', createdAt: new Date().toISOString() });
+                await addDoc(collection(db, 'helpRequests'), {
+                    userId: currentUser.uid,
+                    userName: currentUser.name,
+                    type: 'provide',
+                    amount: amount,
+                    status: 'pending',
+                    createdAt: new Date().toISOString()
+                });
                 alert(`Your request to provide $${amount} has been submitted. It is now pending admin matching.`);
                 loadDashboardData();
-            } catch (error) { alert('Error creating request: ' + error.message); }
+            } catch (error) {
+                alert('Error creating request: ' + error.message);
+            }
         };
         
-        // Get Help function
+        // --- UPDATED: Get Help function with strict validation ---
         window.getHelp = async function() {
-            // This function remains unchanged
-             try {
+            try {
                 const mavroQuery = query(collection(db, 'mavroTransactions'), where('userId', '==', currentUser.uid));
                 const mavroSnapshot = await getDocs(mavroQuery);
                 let withdrawableBalance = 0;
                 const now = new Date();
+
                 mavroSnapshot.forEach(doc => {
                     const t = doc.data();
                     const releaseDate = new Date(t.growthReleaseDate || 0);
-                    if ((t.type === 'provide' && t.status === 'completed' && releaseDate <= now) || ((t.type === 'bonus' || t.type === 'growth') && t.status === 'completed')) {
+                    
+                    if ((t.type === 'provide' && t.status === 'completed' && releaseDate <= now) || 
+                        ((t.type === 'bonus' || t.type === 'growth') && t.status === 'completed')) {
                        withdrawableBalance += t.amount;
                     } else if (t.type === 'get') {
                         withdrawableBalance -= Math.abs(t.amount); 
@@ -314,15 +356,25 @@
 
                 const amountInput = prompt(`How much help do you need?\nYour maximum available balance is $${withdrawableBalance.toFixed(2)}.`);
                 if (!amountInput) return;
+                
                 const amount = parseFloat(amountInput);
                 if (isNaN(amount) || amount <= 0 || amount > withdrawableBalance) {
                     alert('Invalid amount. Please enter a value up to your available balance.');
                     return;
                 }
 
-                await addDoc(collection(db, 'helpRequests'), { userId: currentUser.uid, userName: currentUser.name, type: 'get', amount: amount, status: 'pending', createdAt: new Date().toISOString() });
+                await addDoc(collection(db, 'helpRequests'), {
+                    userId: currentUser.uid,
+                    userName: currentUser.name,
+                    type: 'get',
+                    amount: amount,
+                    status: 'pending',
+                    createdAt: new Date().toISOString()
+                });
+
                 alert(`Your request for $${amount} has been submitted. Admin will verify your balance and process the match.`);
                 loadDashboardData();
+
             } catch (error) {
                 alert('Error creating get help request: ' + error.message);
             }
@@ -330,7 +382,6 @@
 
         // Logout function
         window.logout = function() {
-            // This function remains unchanged
             signOut(auth).then(() => {
                 localStorage.removeItem('currentUser');
                 localStorage.removeItem('isAdmin');
@@ -343,7 +394,7 @@
 </head>
 <body>
     <!-- --- NEW: Modal Structure for Match Details --- -->
-    <div id="matchModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
+    <div id="matchModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50 p-4">
         <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
             <div id="modalContent">
                 <!-- Dynamic content will be injected here -->
@@ -354,25 +405,98 @@
     <div class="min-h-screen bg-gray-50">
         <!-- Header -->
         <header class="bg-white shadow-sm border-b">
-             <!-- ... existing header html ... -->
+            <div class="px-6 py-4">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center space-x-4">
+                        <div class="w-10 h-10 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full flex items-center justify-center">
+                            <span class="text-white font-bold">K</span>
+                        </div>
+                        <h1 class="text-2xl font-bold text-gray-800">Koinonia Dashboard</h1>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <span class="text-gray-600">Welcome, <span id="userName" class="font-semibold"></span></span>
+                        <button onclick="logout()" class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-colors">
+                            Logout
+                        </button>
+                    </div>
+                </div>
+            </div>
         </header>
 
         <div class="flex">
             <!-- Sidebar -->
             <nav class="w-64 bg-white shadow-sm h-screen sticky top-0">
-                <!-- ... existing sidebar html ... -->
+                <div class="p-6">
+                    <ul class="space-y-2">
+                        <li>
+                            <a href="dashboard.html" class="w-full text-left px-4 py-3 rounded-lg bg-blue-50 text-blue-600 font-medium flex items-center">
+                                📊 Dashboard
+                            </a>
+                        </li>
+                        <li>
+                            <a href="my-page.html" class="w-full text-left px-4 py-3 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors flex items-center">
+                                👤 My Page
+                            </a>
+                        </li>
+                        <li>
+                            <a href="mavro.html" class="w-full text-left px-4 py-3 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors flex items-center">
+                                💰 Mavro
+                            </a>
+                        </li>
+                        <li>
+                            <a href="referrals.html" class="w-full text-left px-4 py-3 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors flex items-center">
+                                👥 Referrals
+                            </a>
+                        </li>
+                        <li>
+                            <a href="support.html" class="w-full text-left px-4 py-3 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors flex items-center">
+                                🎧 Support
+                            </a>
+                        </li>
+                    </ul>
+                </div>
             </nav>
 
             <!-- Main Content -->
             <main class="flex-1 p-6">
                 <!-- Primary Action Buttons -->
                 <div class="grid md:grid-cols-2 gap-6 mb-8">
-                     <!-- ... existing buttons html ... -->
+                    <button onclick="provideHelp()" class="bg-gradient-to-r from-green-500 to-green-600 text-white p-8 rounded-2xl hover:from-green-600 hover:to-green-700 transition-all transform hover:scale-105 shadow-lg">
+                        <div class="text-center">
+                            <div class="text-4xl mb-4">🤝</div>
+                            <h3 class="text-2xl font-bold mb-2">Provide Help</h3>
+                            <p class="text-green-100">Request to provide help and be matched by an admin.</p>
+                        </div>
+                    </button>
+                    <button onclick="getHelp()" class="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-8 rounded-2xl hover:from-blue-600 hover:to-blue-700 transition-all transform hover:scale-105 shadow-lg">
+                        <div class="text-center">
+                            <div class="text-4xl mb-4">🙏</div>
+                            <h3 class="text-2xl font-bold mb-2">Get Help</h3>
+                            <p class="text-blue-100">Request help from your matured and confirmed funds.</p>
+                        </div>
+                    </button>
                 </div>
 
                 <!-- Account Summary -->
                 <div class="bg-white rounded-2xl shadow-sm p-6 mb-8">
-                    <!-- ... existing summary html ... -->
+                    <h3 class="text-xl font-bold text-gray-800 mb-6">Account Summary</h3>
+                    <div class="grid md:grid-cols-3 gap-6">
+                        <div class="bg-gradient-to-r from-yellow-400 to-orange-500 text-white p-6 rounded-xl">
+                            <h4 class="text-lg font-semibold mb-2">Total Mavro</h4>
+                            <p class="text-3xl font-bold" id="totalMavro">$0.00</p>
+                            <p class="text-yellow-100 text-sm mt-2">Overall Balance</p>
+                        </div>
+                        <div class="bg-gradient-to-r from-green-400 to-green-500 text-white p-6 rounded-xl">
+                            <h4 class="text-lg font-semibold mb-2">Monthly Growth</h4>
+                            <p class="text-3xl font-bold">30%</p>
+                            <p class="text-green-100 text-sm mt-2">On Matured Mavro</p>
+                        </div>
+                        <div class="bg-gradient-to-r from-purple-400 to-purple-500 text-white p-6 rounded-xl">
+                            <h4 class="text-lg font-semibold mb-2">Status</h4>
+                            <p class="text-2xl font-bold" id="accountStatus">Active</p>
+                            <p class="text-purple-100 text-sm mt-2">Account Standing</p>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Transaction Queue -->
@@ -393,6 +517,5 @@
             </main>
         </div>
     </div>
-    <!-- The rest of your body content is assumed here -->
-</body>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'974a5f57d4f494bb',t:'MTc1NjExNzM5MC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
